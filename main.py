@@ -8,6 +8,7 @@ import time
 import torch
 import transformer_engine.pytorch as te
 from actor_model import ActorModel
+from transformer_engine.common.recipe import Format, DelayedScaling
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -63,7 +64,7 @@ def mask_tokens(data, mask_probability):
     return mask
 
 def load_model():
-	net = ActorModel()
+	net = ActorModel(transformer_size=1024, transformer_attention_size=64, batch_size=1, dropout=.1)
 	net_state_dict = net.state_dict()
 	raw_state_dict = torch.load('/media/qhawkins/Archive/MLM Models/mlm_model_cluster_2_ddp/model_1_0.004021_normal_1024_64_40.pth')
 	
@@ -75,15 +76,25 @@ def load_model():
 	net.load_state_dict(net_state_dict)
 	return net
 
-def get_action(ob_state, env_state, model, device):
-	mask = mask_tokens(ob_state, 0).to(device, non_blocking=True)
-	action = model(mask, ob_state, env_state)
+def get_action(ob_state, env_state, model, device, recipe):
+	mask = mask_tokens(ob_state, 0)
+	mask = mask.to(device, non_blocking=True)
+	env_state = torch.tensor(env_state)
+	env_state = env_state.to(device, non_blocking=True)
+	ob_state = torch.tensor(ob_state)
+	ob_state = ob_state.to(device, non_blocking=True)
+	with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
+		action = model(mask, ob_state, env_state)
+
 	return action
 	# Initialize transformer
 
 
 def main():
 	model = load_model()
+	fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
+	recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
+
 	raw_data_path = "/mnt/drive2/raw_data/"
 	for folder in glob.glob(raw_data_path + "*/"):
 		for idx, filename in enumerate(glob.glob(folder + "*")):
@@ -104,11 +115,14 @@ def main():
 			
 			environment = Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=0)
 			environment.reset(raw_ob, 100000, 0, 100000)
+			models = [model.to('cuda:0'), model.to('cuda:1')]
 			for timestep in range(parsed_file.shape[0]):
 				if timestep > 256:
-					ob_state = parsed_file[timestep-256:timestep, :, :]
+					model = models[timestep % 2]
+					ob_state = parsed_file[timestep, :, :, :]
 					env_state = environment.get_state(timestep)
-					action = get_action(ob_state, env_state, model, device='cuda:0')
+					action = get_action(ob_state, env_state, model, 
+						 device='cuda:1' if timestep % 2 == 0 else 'cuda:0', recipe=recipe)
 					environment.step(action, timestep)
 				else:
 					environment.step(0, timestep)
@@ -134,5 +148,4 @@ def main():
 	return 0
 
 if __name__ == '__main__':
-	model = 
 	main()
