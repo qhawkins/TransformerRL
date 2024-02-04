@@ -7,7 +7,7 @@ from numba import prange
 import time
 import torch
 import transformer_engine.pytorch as te
-
+from actor_model import ActorModel
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -56,10 +56,34 @@ def parse_file(file):
 	print(f'raw order book shape: {len(raw_ob)}')
 	return (consolidated_order_book, raw_ob)
 
+def mask_tokens(data, mask_probability):
+    # Create a mask of the same shape as the data
+    mask = torch.rand(data.shape) < mask_probability
+    # Masking the data
+    return mask
+
+def load_model():
+	net = ActorModel()
+	net_state_dict = net.state_dict()
+	raw_state_dict = torch.load('/media/qhawkins/Archive/MLM Models/mlm_model_cluster_2_ddp/model_1_0.004021_normal_1024_64_40.pth')
+	
+	# Remove the module prefix from the keys
+	parsed_state_dict = {key.replace('module.', ''): value for key, value in raw_state_dict.items()}
+
+	# replace all items in net state dict that have correesponding keys in parsed state dict with their matching values
+	net_state_dict = {key: parsed_state_dict[key] if key in parsed_state_dict else value for key, value in net_state_dict.items()}
+	net.load_state_dict(net_state_dict)
+	return net
+
+def get_action(ob_state, env_state, model, device):
+	mask = mask_tokens(ob_state, 0).to(device, non_blocking=True)
+	action = model(mask, ob_state, env_state)
+	return action
+	# Initialize transformer
 
 
 def main():
-
+	model = load_model()
 	raw_data_path = "/mnt/drive2/raw_data/"
 	for folder in glob.glob(raw_data_path + "*/"):
 		for idx, filename in enumerate(glob.glob(folder + "*")):
@@ -81,10 +105,13 @@ def main():
 			environment = Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=0)
 			environment.reset(raw_ob, 100000, 0, 100000)
 			for timestep in range(parsed_file.shape[0]):
-				if timestep % 2 == 0:
-					environment.step(-10, timestep)
+				if timestep > 256:
+					ob_state = parsed_file[timestep-256:timestep, :, :]
+					env_state = environment.get_state(timestep)
+					action = get_action(ob_state, env_state, model, device='cuda:0')
+					environment.step(action, timestep)
 				else:
-					environment.step(10, timestep)
+					environment.step(0, timestep)
 				
 				print(f'timestep: {timestep}')
 				print(f'cash: {environment.cash}')
@@ -107,4 +134,5 @@ def main():
 	return 0
 
 if __name__ == '__main__':
+	model = 
 	main()

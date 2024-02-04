@@ -263,9 +263,6 @@ class Environment:
 		'''need to replace with the "true" price from the order book'''
 		positions = jit_z_score(self.position_history[start_index:end_index])
 		cash = jit_z_score(self.cash_history[start_index:end_index])
-		st_profit = jit_z_score(self.st_profit_history[start_index:end_index])
-		total_profit = jit_z_score(self.total_profit_history[start_index:end_index])
-		actions = jit_z_score(self.action_history[start_index:end_index], scale=5)  # Example scaling
-
+		actions = jit_z_score(self.action_history[start_index:end_index])  # Example scaling
 		# Combine all features into a single state array
-		return (positions, cash, st_profit, total_profit, actions)
+		return np.concatenate([positions, cash, actions], axis=-1)
