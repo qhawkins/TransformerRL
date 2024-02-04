@@ -82,9 +82,9 @@ def main():
 			environment.reset(raw_ob, 100000, 0, 100000)
 			for timestep in range(parsed_file.shape[0]):
 				if timestep % 2 == 0:
-					environment.step(10, timestep)
-				else:
 					environment.step(-10, timestep)
+				else:
+					environment.step(10, timestep)
 				
 				print(f'timestep: {timestep}')
 				print(f'cash: {environment.cash}')

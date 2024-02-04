@@ -19,10 +19,11 @@ def jit_z_score(x):
 
 
 class Environment:
-	def __init__(self, prices=None, offset_init=0, gamma_init=0.0, time=0):
+	def __init__(self, prices=None, offset_init=0, gamma_init=0.0, time=0, margin_requirement_percentage=.25, leverage_factor=4):
 		if prices is None:
 			print("Error: prices cannot be None")
-
+		self.margin_requirement_percentage = margin_requirement_percentage
+		self.leverage_factor = leverage_factor
 		self.prices_v = prices
 		self.position_history = np.zeros(len(self.prices_v))
 		self.cash_history = np.zeros(len(self.prices_v))
@@ -82,21 +83,32 @@ class Environment:
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 
-		# Trade logic (simplified)
-		self.trade = False
-		if action > 0:
-			if self.find_fill_price(-self.position, -self.position) < self.cash:
-				self.trade = True
-				self.execute_trade(action)
-		elif action < 0:
-			
-		if (action > 0 and self.find_fill_price(action, action) > self.start_cash) or \
-		(action < 0 and (self.find_fill_price(self.position, action) + (self.find_fill_price(action, action)) > -100000)):
-			self.trade = True
-			self.execute_trade(action)
 		
+		
+		if action > 0:  # Buying
+			potential_trade_cost = self.find_fill_price(action, action)
+			potential_cash_after_trade = self.cash - potential_trade_cost
+			# Calculate total account value considering leverage and potential trade
+			potential_account_value = (self.cash + (self.leverage_factor * potential_trade_cost))
+			# Check if account value after trade meets margin requirements
+			if potential_trade_cost < self.cash and potential_cash_after_trade >= (potential_account_value * self.margin_requirement_percentage):
+				self.execute_trade(action)
+
+		elif action < 0:  # Selling or Negative Action
+			adjustment_cost = self.find_fill_price(self.position, action) + self.find_fill_price(action, action)
+			# Here, you may also want to consider how selling affects margin usage and account equity
+			# For simplicity, ensure net effect of the action doesn't exceed a certain loss threshold, considering margin
+			if adjustment_cost > -100000 and (self.cash + adjustment_cost) >= (self.cash * self.margin_requirement_percentage):
+				self.execute_trade(action)
+
 		self.position_history[self.current_tick] = self.position
-		self.account_value = (self.position * self.price) + self.cash
+		if self.position > 0:
+			self.account_value = self.cash + self.find_fill_price(self.position, self.position)
+		elif self.position < 0:
+			self.account_value = self.cash - self.find_fill_price(self.position, -self.position)
+		else:
+			self.account_value = self.cash
+		
 		self.total_profit = self.account_value / self.start_cash
 		self.cash_history[self.current_tick] = self.cash
 		self.total_profit_history[self.current_tick] = self.total_profit
@@ -120,6 +132,8 @@ class Environment:
 			self.cash += (self.find_fill_price(action, action, self.current_tick) - (.0035 * abs(action)))
 			print(f'cash after sell: {self.cash}')
 			self.position += action
+		else:
+			return
 
 
 	def calculate_reward(self):
@@ -135,7 +149,61 @@ class Environment:
 		return step_reward
 	
 	'''function to find the fill price of the order'''
-	def find_fill_price(self, quantity, action, timestep = None):
+	def find_fill_price(self, quantity, action, timestep=None):
+		'''quantity is positive for buy and negative for sell'''
+		if timestep is None:
+			timestep = self.current_tick
+
+		current_price_slice = self.prices_v[timestep]
+		liquidity_used = 0
+
+		if action > 0:  # Buying
+			index = 50
+			while abs(quantity) > 0:
+				price = current_price_slice[index, 0]
+				liquidity = current_price_slice[index, 1]
+				#print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
+				if liquidity >= abs(quantity):
+					if quantity < 0:
+						liquidity_used -= price * abs(quantity)
+					else:
+						liquidity_used += price * abs(quantity)
+
+					break  # Exit the loop as the entire quantity has been filledq
+				else:
+					liquidity_used += price * liquidity
+					if quantity < 0:
+						quantity += liquidity
+					else:
+						quantity -= liquidity
+
+					index += 1
+
+		elif action < 0:  # Selling
+			index = 49
+			while abs(quantity) > 0:
+				price = current_price_slice[index, 0]
+				liquidity = current_price_slice[index, 1]
+				#print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
+				
+				if liquidity >= abs(quantity):
+					if quantity < 0:
+						liquidity_used += price * abs(quantity)
+					else:
+						liquidity_used -= price * abs(quantity)
+
+					break  # Exit the loop as the entire quantity has been filled
+				else:
+					liquidity_used += price * liquidity
+					if quantity < 0:
+						quantity += liquidity  # Correctly increase towards zero for negative quantities
+					else:
+						quantity -= liquidity
+					index -= 1
+
+		return liquidity_used
+
+	def find_fill_price_old(self, quantity, action, timestep = None):
 		'''quantity is positive for buy and negative for sell'''
 		if timestep is None:
 			timestep = self.current_tick
@@ -148,7 +216,8 @@ class Environment:
 			while abs(quantity) > 0:
 				price = current_price_slice[index, 0]
 				liquidity = current_price_slice[index, 1]
-				if liquidity > quantity:
+				print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
+				if liquidity > abs(quantity):
 					return (price*quantity)+liquidity_used
 				else:
 					liquidity_used += price*liquidity
@@ -161,6 +230,7 @@ class Environment:
 			while abs(quantity) > 0:
 				price = current_price_slice[index, 0]
 				liquidity = current_price_slice[index, 1]
+				print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
 				if liquidity > abs(quantity):
 					return (price*quantity)-liquidity_used
 				else:
@@ -168,15 +238,16 @@ class Environment:
 					quantity+=liquidity
 					index -= 1
 			return liquidity_used
+		
 		return liquidity_used
 
 	def future_profits(self, buffer_len, position, current_tick):
 		# Simplified future profits calculation
 		fut_profit = np.zeros(buffer_len)
-		initial_basis = self.find_fill_price(abs(position), -position, current_tick)+self.cash
+		initial_basis = self.find_fill_price(position, -position, current_tick)+self.cash
 		#initial_basis = (position * self.prices_v[current_tick]) + self.cash
 		for i in range(buffer_len):
-			fut_profit[i] = (self.find_fill_price(abs(position), -position, current_tick + i)+self.cash)/initial_basis
+			fut_profit[i] = (self.find_fill_price(position, -position, current_tick + i)+self.cash)/initial_basis
 			#5000 * (((position * self.prices_v[current_tick + i]) + self.cash) - initial_basis) / initial_basis
 		return fut_profit
 
