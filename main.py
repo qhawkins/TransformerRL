@@ -9,7 +9,9 @@ import torch
 import transformer_engine.pytorch as te
 from actor_model import ActorModel
 from transformer_engine.common.recipe import Format, DelayedScaling
-
+import random
+import multiprocessing as mp
+from multiprocessing import shared_memory
 @nb.njit(cache=True)
 def jit_z_score(x):
 	mean_x = np.nanmean(x)
@@ -58,10 +60,10 @@ def parse_file(file):
 	return (consolidated_order_book, raw_ob)
 
 def mask_tokens(data, mask_probability):
-    # Create a mask of the same shape as the data
-    mask = torch.rand(data.shape) < mask_probability
-    # Masking the data
-    return mask
+	# Create a mask of the same shape as the data
+	mask = torch.rand(data.shape) < mask_probability
+	# Masking the data
+	return mask
 
 def load_model():
 	net = ActorModel(transformer_size=1024, transformer_attention_size=64, dropout=.1)
@@ -82,6 +84,7 @@ def load_model():
 	net.load_state_dict(net_state_dict)
 	return net
 
+
 def get_action(ob_state, env_state, model, device, recipe):
 	mask = mask_tokens(ob_state, 0)
 	mask = mask.to(device, non_blocking=True)
@@ -94,6 +97,50 @@ def get_action(ob_state, env_state, model, device, recipe):
 
 	return action
 	# Initialize transformer
+
+
+def random_index_selection(index_start, num_steps, vector_size, time_dim):
+	random_index = random.randint(index_start, vector_size - num_steps - time_dim)
+	# Uncomment the next line to print the random index
+	# print(f"random index: {random_index}")
+	return random_index
+
+
+def act(actor, state, env_num, epsilon):
+	action_probs = actor.forward(state)
+	random_value = random.random()
+	
+	if random_value > epsilon:
+		action = torch.argmax(action_probs, dim=1)
+	else:
+		action = torch.multinomial(action_probs, 1, replacement=True)
+	# print("action created")
+	
+	action_logprobs = torch.zeros(env_num, device='cuda')
+	# print("action log probs created")
+	for i in range(action_probs.size(0)):
+		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
+	# print("action log probs looped")
+	# print(f"state device: {state.device}")
+	
+	state_val = critic.forward(state)
+	# print("state val created")
+
+	return action, action_logprobs, state_val
+
+def environment_step(environment, timestep, shared_ob_state, model_0, model_1, recipe):
+	env_state = environment.get_state(timestep)
+	
+	action = get_action(shared_ob_state, env_state, model=model_1 if timestep % 2 == 0 else model_0, 
+				device='cuda:1' if timestep % 2 == 0 else 'cuda:0', recipe=recipe)
+	
+	environment.step(action, timestep)
+	
+	print(f'timestep: {timestep}')
+	print(f'cash: {environment.cash}')
+	print(f'position: {environment.position}')
+	print(f'account value: {environment.account_value}')
+	print(75*'=')
 
 
 def main():
@@ -118,27 +165,30 @@ def main():
 			if file is None:
 				continue
 			
-			environment = Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256)
-			environment.reset(raw_ob, 100000, 0, 100000)
+			num_threads = 4
+			env_per_thread = 32
+			thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256) for i in range(env_per_thread)]
+			thread_env = [thread_env[i].reset() for i in range(env_per_thread)]
+			environment_arr = [thread_env for i in range(num_threads)]
+			
 			model_0 = load_model().to('cuda:0')
 			model_1 = load_model().to('cuda:1')
-			
+
+			#create thread pool
+
+
 			for timestep in range(parsed_file.shape[0]):
 				if timestep > 256:
 					ob_state = parsed_file[timestep, :, :, :]
-					env_state = environment.get_state(timestep)
-					action = get_action(ob_state, env_state, model=model_1 if timestep % 2 == 0 else model_0, 
-						 device='cuda:1' if timestep % 2 == 0 else 'cuda:0', recipe=recipe)
-					environment.step(action, timestep)
+					
+					for thread_idx in range(num_threads):
+						"""thread pool"""
+						environment_step(environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe)
+
 				else:
-					environment.step(0, timestep)
+					for thread_idx in range(num_threads):
+						environment_arr[thread_idx].step(0, timestep)
 				
-				print(f'timestep: {timestep}')
-				print(f'cash: {environment.cash}')
-				print(f'position: {environment.position}')
-				print(f'account value: {environment.account_value}')
-				print(75*'=')
-			
 			
 			
 			

@@ -8,8 +8,9 @@ import torch.jit as jit
 time_size = 256
 
 class ActorModel(torch.nn.Module):
-    def __init__(self, transformer_size=1024, transformer_attention_size=64, dropout=0.1, fuse_qkv=False):
+    def __init__(self, batch_size = 64, transformer_size=1024, transformer_attention_size=64, dropout=0.1, fuse_qkv=False):
         super().__init__()
+        self.batch_size = batch_size
         self.state_embedding = torch.nn.Linear(208, transformer_size)
         
         self.encoder_transformer_layer_1 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
@@ -124,17 +125,15 @@ class ActorModel(torch.nn.Module):
 
         self.positional_encoder = Summer(PositionalEncoding1D(transformer_size)).cuda()
 
-        self.padding = torch.zeros((time_size, 4, 2)).cuda()
+        self.padding = torch.zeros((self.batch_size, time_size, 4, 2)).cuda()
 
     def forward(self, mask, input_tuple, env_state):
         padded = torch.cat((input_tuple, self.padding), axis=1)
         padded_mask = torch.cat((mask, self.padding), axis=1)
 
         input_tuple = self.state_embedding(input_tuple)
-        input_tuple = torch.reshape(padded, (1, time_size, 208))
         
         input_tuple = self.positional_encoder(input_tuple)
-        input_tuple = torch.reshape(input_tuple, (time_size, 1024))
         input_tuple = self.dropout(input_tuple)
 
         encoder_output = self.encoder_transformer_layer_1(input_tuple)
@@ -179,13 +178,13 @@ class ActorModel(torch.nn.Module):
         
         full_state = self.actor_layer_2(full_state)
 
-        full_state = torch.flatten(full_state, start_dim=1)
-        
+        full_state = torch.reshape(full_state, (self.batch_size, -1))
+
         full_state = self.relu(full_state)
         full_state = self.dropout(full_state)
         
         output = self.actor_layer_3(full_state)
         output = self.relu(output)
-        output = torch.nn.functional.softmax(output, dim=-1)
+        output = torch.nn.functional.softmax(output, dim=-2)
 
         return output
