@@ -12,6 +12,8 @@ from transformer_engine.common.recipe import Format, DelayedScaling
 import random
 import multiprocessing as mp
 from multiprocessing import shared_memory
+import asyncio
+
 @nb.njit(cache=True)
 def jit_z_score(x):
 	mean_x = np.nanmean(x)
@@ -123,30 +125,26 @@ def act(actor, state, env_num, epsilon):
 	# print("action log probs looped")
 	# print(f"state device: {state.device}")
 	
-	state_val = critic.forward(state)
 	# print("state val created")
 
 	return action, action_logprobs, state_val
 
 def environment_step(environment, timestep, shared_ob_state, model_0, model_1, recipe):
-	env_state = environment.get_state(timestep)
+	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
+	for idx, env in enumerate(environment):
+		batched_env_state[idx] = env.get_state(timestep)
 	
-	action = get_action(shared_ob_state, env_state, model=model_1 if timestep % 2 == 0 else model_0, 
+	batched_actions = get_action(shared_ob_state, batched_env_state, model=model_1 if timestep % 2 == 0 else model_0, 
 				device='cuda:1' if timestep % 2 == 0 else 'cuda:0', recipe=recipe)
 	
-	environment.step(action, timestep)
+	for idx, env in enumerate(environment):
+		env.step(batched_actions[idx], timestep)
 	
-	print(f'timestep: {timestep}')
-	print(f'cash: {environment.cash}')
-	print(f'position: {environment.position}')
-	print(f'account value: {environment.account_value}')
-	print(75*'=')
 
-
-def main():
+async def main():
 	fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
 	recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
-
+	
 	raw_data_path = "/mnt/drive2/raw_data/"
 	for folder in glob.glob(raw_data_path + "*/"):
 		for idx, filename in enumerate(glob.glob(folder + "*")):
@@ -167,6 +165,7 @@ def main():
 			
 			num_threads = 4
 			env_per_thread = 32
+			pool = mp.Pool(num_threads)
 			thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256) for i in range(env_per_thread)]
 			thread_env = [thread_env[i].reset() for i in range(env_per_thread)]
 			environment_arr = [thread_env for i in range(num_threads)]
@@ -182,13 +181,14 @@ def main():
 					ob_state = parsed_file[timestep, :, :, :]
 					
 					for thread_idx in range(num_threads):
+						await pool.map_async(environment_step, (environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe))
 						"""thread pool"""
-						environment_step(environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe)
+						#environment_step(environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe)
 
 				else:
 					for thread_idx in range(num_threads):
-						environment_arr[thread_idx].step(0, timestep)
-				
+						for env in environment_arr[thread_idx]:
+							env.step(0, timestep)
 			
 			
 			
@@ -204,4 +204,4 @@ def main():
 	return 0
 
 if __name__ == '__main__':
-	main()
+	asyncio.run(main())
