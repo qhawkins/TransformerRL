@@ -8,107 +8,106 @@ import torch.jit as jit
 time_size = 256
 
 class ActorModel(torch.nn.Module):
-    def __init__(self, transformer_size=1024, transformer_attention_size=64, batch_size=1, dropout=0.1):
+    def __init__(self, transformer_size=1024, transformer_attention_size=64, dropout=0.1):
         super().__init__()
-        self.batch_size = batch_size
-        self.state_embedding = te.Linear(208, transformer_size)
+        self.state_embedding = torch.nn.Linear(208, transformer_size)
         
         self.encoder_transformer_layer_1 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
-                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                      
                                                      )
         self.encoder_transformer_layer_2 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
-                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False, 
                                                      
                                                      )
         self.encoder_transformer_layer_3 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
-                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False, 
                                                      
                                                      )
         self.encoder_transformer_layer_4 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
-                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                     num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False, 
                                                      
                                                      )
         self.encoder_transformer_layer_5 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_6 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_7 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_8 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_9 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_10 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_11 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.encoder_transformer_layer_12 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=False,
                                                         
                                                         )
         
 
         self.decoder_transformer_layer_1 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
-                                                     num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                     num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                      
                                                      )
         self.decoder_transformer_layer_2 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_3 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_4 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_5 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_6 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_7 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_8 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_9 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                        num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                         
                                                         )
         self.decoder_transformer_layer_10 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                            num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                            num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                             
                                                             )
         self.decoder_transformer_layer_11 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                            num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                            num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                             
                                                             )
         self.decoder_transformer_layer_12 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
-                                                            num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=True,
+                                                            num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=False,
                                                             
                                                             )
         
@@ -131,9 +130,11 @@ class ActorModel(torch.nn.Module):
         padded = torch.cat((input_tuple, self.padding), axis=1)
         padded_mask = torch.cat((mask, self.padding), axis=1)
 
-        input_tuple = torch.reshape(padded, (time_size, 208))
         input_tuple = self.state_embedding(input_tuple)
+        input_tuple = torch.reshape(padded, (1, time_size, 208))
+        
         input_tuple = self.positional_encoder(input_tuple)
+        input_tuple = torch.reshape(input_tuple, (time_size, 1024))
         input_tuple = self.dropout(input_tuple)
         
 

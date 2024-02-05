@@ -19,7 +19,7 @@ def jit_z_score(x):
 
 
 class Environment:
-	def __init__(self, prices=None, offset_init=0, gamma_init=0.0, time=0, margin_requirement_percentage=.25, leverage_factor=4):
+	def __init__(self, prices=None, offset_init=0, gamma_init=0.0, time=256, margin_requirement_percentage=.25, leverage_factor=4):
 		if prices is None:
 			print("Error: prices cannot be None")
 		self.margin_requirement_percentage = margin_requirement_percentage

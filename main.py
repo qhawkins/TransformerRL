@@ -22,7 +22,7 @@ def jit_z_score(x):
 			result = np.zeros_like(diff_x)
 	else:
 		print('nans or infs in z_score')
-		result = np.empty_like(diff_x)
+		result = np.zeros_like(diff_x)
 	
 	return result
 
@@ -64,15 +64,21 @@ def mask_tokens(data, mask_probability):
     return mask
 
 def load_model():
-	net = ActorModel(transformer_size=1024, transformer_attention_size=64, batch_size=1, dropout=.1)
+	net = ActorModel(transformer_size=1024, transformer_attention_size=64, dropout=.1)
 	net_state_dict = net.state_dict()
 	raw_state_dict = torch.load('/media/qhawkins/Archive/MLM Models/mlm_model_cluster_2_ddp/model_1_0.004021_normal_1024_64_40.pth')
 	
 	# Remove the module prefix from the keys
 	parsed_state_dict = {key.replace('module.', ''): value for key, value in raw_state_dict.items()}
-
+	print(parsed_state_dict.keys())
+	print(net_state_dict.keys())
+	[print(f'key inside: {key}') if key in parsed_state_dict else print(key) for key, value in net_state_dict.items()]
+	
+	exit()
 	# replace all items in net state dict that have correesponding keys in parsed state dict with their matching values
+	
 	net_state_dict = {key: parsed_state_dict[key] if key in parsed_state_dict else value for key, value in net_state_dict.items()}
+	
 	net.load_state_dict(net_state_dict)
 	return net
 
@@ -91,7 +97,6 @@ def get_action(ob_state, env_state, model, device, recipe):
 
 
 def main():
-	model = load_model()
 	fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
 	recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
 
@@ -113,15 +118,16 @@ def main():
 			if file is None:
 				continue
 			
-			environment = Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=0)
+			environment = Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256)
 			environment.reset(raw_ob, 100000, 0, 100000)
-			models = [model.to('cuda:0'), model.to('cuda:1')]
+			model_0 = load_model().to('cuda:0')
+			model_1 = load_model().to('cuda:1')
+			
 			for timestep in range(parsed_file.shape[0]):
 				if timestep > 256:
-					model = models[timestep % 2]
 					ob_state = parsed_file[timestep, :, :, :]
 					env_state = environment.get_state(timestep)
-					action = get_action(ob_state, env_state, model, 
+					action = get_action(ob_state, env_state, model=model_1 if timestep % 2 == 0 else model_0, 
 						 device='cuda:1' if timestep % 2 == 0 else 'cuda:0', recipe=recipe)
 					environment.step(action, timestep)
 				else:
