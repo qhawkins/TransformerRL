@@ -165,8 +165,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						
-						for idx, x in enumerate(result):
-							batched_env_state[idx] = torch.tensor(x)
+						batched_env_state = torch.tensor(np.stack(result, axis=0))
+						
+						#for idx, x in enumerate(result):
+						#	batched_env_state[idx] = torch.tensor(x)
 							#batched_env_state = result
 
 						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
@@ -188,17 +190,21 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 
-						batched_returns = torch.tensor(result)
-
+						batched_returns = torch.tensor(np.array(result)).cuda()
+						batched_returns = torch.reshape(batched_returns, (config['batch_size'], 1))
+						
 						advantages: torch.Tensor = batched_returns - state_val
 						actor_loss = torch.mean(-action_logprobs * advantages.detach())
-						actor_loss.backward()
+						#actor_loss.backward(retain_graph=True)
 
-						critic_loss = mse_loss(state_val, torch.tensor(batched_returns, device='cuda'))
-						critic_loss.backward()
+						critic_loss = mse_loss(state_val, batched_returns.detach().clone())
+						
+						combined_loss = actor_loss + critic_loss
+						print(f'day: {idx}, step: {timestep}, combined loss: {combined_loss}')
+						combined_loss.backward()
+						#critic_loss.backward()
 
-						print(actor_loss.item())
-						print(critic_loss.item())
+						
 						optimizer.step()
 						optimizer.zero_grad()
 
