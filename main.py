@@ -99,7 +99,7 @@ def act_calcs(env_num, epsilon, action_probs, state_val):
 	
 	return action, action_logprobs, state_val
 
-def env_state(environment, timestep, shared_ob_state):
+def env_state_retr(environment, timestep, shared_ob_state):
 	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
 	for idx, env in enumerate(environment):
 		batched_env_state[idx] = env.get_state(timestep)
@@ -151,7 +151,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			env_per_thread = 32
 			pool = mp.Pool(num_threads)
 			thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256) for i in range(env_per_thread)]
-			thread_env = [thread_env[i].reset() for i in range(env_per_thread)]
+			[thread_env[i].reset(raw_ob, 100000, 0, 199999) for i in range(env_per_thread)]
 			environment_arr = [thread_env for i in range(num_threads)]
 			
 			batched_env_state = np.zeros((env_per_thread, 256, 3), dtype=np.float32)
@@ -162,11 +162,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 					ob_state = parsed_file[timestep, :, :, :]
 					
 					with pool:
-						pool = [pool.apply_async(env_state, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(num_threads)]
-						result = pool.get()
+						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(num_threads)]
+						result = [x.get() for x in pooled]
 						
-						for i, result in enumerate(result):
-							batched_env_state[i] = result
+						batched_env_state = result
 
 					mask = mask_tokens(ob_state, 0)
 					mask = mask.cuda(non_blocking=True)
@@ -181,10 +180,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 					action, action_logprobs, state_val = act_calcs(env_per_thread, .2, action_probs, state_val)
 
 					with pool:
-						pool = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(num_threads)]
-						result = pool.get()
-						for idx, result in enumerate(result):
-							batched_returns[idx] = result
+						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(num_threads)]
+						result = [x.get() for x in pooled]
+
+						batched_returns = result
 
 					advantages: torch.Tensor = batched_returns - state_val
 					actor_loss = torch.mean(-action_logprobs * advantages.detach())
@@ -229,7 +228,7 @@ if __name__ == '__main__':
 		'use_streaming': True,
 		'transformer_attention_size': 64,
 		"epochs": max_num_epochs,
-		"lr": 5e-6,
+		"learning_rate": 5e-6,
 		#"lr": tune.choice([5e-4]),
 		"batch_size": 40,
 		'prefetch': 1024,

@@ -36,6 +36,7 @@ class Environment:
 		self.gamma = gamma_init
 		self.time_dim = time
 		self.timestep_offset = offset_init
+		self.state = np.zeros((self.time_dim, 3))
 		
 
 	def reset(self, prices, cash, position, account_value):
@@ -60,7 +61,7 @@ class Environment:
 		self.st_profit = 0
 		self.trade = False
 		# More attributes initialization as per original C++ code
-		self.state = np.zeros((self.time_dim, 7))  # Example, adjust dimensions as needed
+		self.state = np.zeros((self.time_dim, 3))  # Example, adjust dimensions as needed
 		self.price = 0
 		self.timestep_offset = 0
 		# Initialize histories
@@ -261,8 +262,8 @@ class Environment:
 		start_index = max(0, tick - self.time_dim)
 		end_index = tick
 		'''need to replace with the "true" price from the order book'''
-		positions = jit_z_score(self.position_history[start_index:end_index])
-		cash = jit_z_score(self.cash_history[start_index:end_index])
-		actions = jit_z_score(self.action_history[start_index:end_index])  # Example scaling
+		self.state[:, 0] = jit_z_score(self.position_history[start_index:end_index])
+		self.state[:, 1] = jit_z_score(self.cash_history[start_index:end_index])
+		self.state[:, 2] = jit_z_score(self.action_history[start_index:end_index])  # Example scaling
 		# Combine all features into a single state array
-		return np.concatenate([positions, cash, actions], axis=-1)
+		return self.state
