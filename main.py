@@ -105,7 +105,7 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 	for i in range(action_probs.size(0)):
 		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
 
-	action = [actions[act] for act in action]
+	action = torch.tensor([actions[act] for act in action])
 
 	return action, action_logprobs, state_val
 
@@ -205,10 +205,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 								action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
 							action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
-							
+							action = torch.reshape(action, (config['thread_num'], config['envs_per_thread']))
+							action_logprobs = torch.reshape(action_logprobs, (config['thread_num'], config['envs_per_thread']))
+							state_val = torch.reshape(state_val, (config['thread_num'], config['envs_per_thread']))
 							print(action.shape)
 							print(action)
-							
+
 							exit()
 
 							pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
