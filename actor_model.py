@@ -130,8 +130,8 @@ class ActorModel(torch.nn.Module):
         self.padding = torch.zeros((self.batch_size, time_size, 4, 2)).cuda()
 
     def forward(self, mask, input_tuple, env_state):
-        padded = torch.cat((input_tuple, self.padding), axis=1)
-        padded_mask = torch.cat((mask, self.padding), axis=1)
+        padded = torch.cat((input_tuple, self.padding), axis=2)
+        padded_mask = torch.cat((mask, self.padding), axis=2)
 
         input_tuple = self.state_embedding(padded)
         
