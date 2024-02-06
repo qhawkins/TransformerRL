@@ -93,7 +93,8 @@ def load_model(rank, tensor_parallel_group, config):
 
 def act_calcs(batch_size, epsilon, action_probs, state_val):
 	random_value = random.random()
-	
+	actions = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]	
+
 	if random_value > epsilon:
 		action = torch.argmax(action_probs, dim=1)
 	else:
@@ -103,7 +104,9 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 	
 	for i in range(action_probs.size(0)):
 		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
-	
+
+	action = [actions[act] for act in action]
+
 	return action, action_logprobs, state_val
 
 def env_state_retr(environment, timestep):
@@ -202,8 +205,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 								action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
 							action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
+							
+							print(action.shape)
 							print(action)
-							print(100*'=')
+							
+							exit()
+
 							pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
 							result = [x.get() for x in pooled]
 

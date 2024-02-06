@@ -37,7 +37,6 @@ class Environment:
 		self.time_dim = time
 		self.timestep_offset = offset_init
 		self.state = np.zeros((self.time_dim, 3))
-		self.actions = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
 		
 
 	def reset(self, prices, cash, position, account_value):
@@ -85,9 +84,9 @@ class Environment:
 		self.total_profit = (self.find_fill_price(self.position, -self.position, self.current_tick) + self.cash) / self.start_cash
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
-
-		action = self.actions[action]
 		
+		
+
 		if action > 0:  # Buying
 			potential_trade_cost = self.find_fill_price(action, action)
 			potential_cash_after_trade = self.cash - potential_trade_cost
