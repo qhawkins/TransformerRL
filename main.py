@@ -93,14 +93,13 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 		action = torch.multinomial(action_probs, 1, replacement=True)
 	
 	action_logprobs = torch.zeros(batch_size, device='cuda')
-	print(action_probs.size())
-	print(action.size())
+	
 	for i in range(action_probs.size(0)):
 		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
 	
 	return action, action_logprobs, state_val
 
-def env_state_retr(environment, timestep, shared_ob_state):
+def env_state_retr(environment, timestep):
 	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
 	for idx, env in enumerate(environment):
 		batched_env_state[idx] = env.get_state(timestep)
@@ -162,7 +161,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						for x in range(config['batch_size']):
 							batched_ob[x] = torch.tensor(ob_state).clone().detach()
 
-						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(config['num_threads'])]
+						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						
 						batched_env_state = torch.tensor(np.stack(result, axis=0))
@@ -201,6 +200,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						
 						combined_loss = actor_loss + critic_loss
 						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}')
+						print(100*'=')
 						combined_loss.backward()
 						#critic_loss.backward()
 
