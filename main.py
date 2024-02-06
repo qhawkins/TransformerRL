@@ -171,13 +171,13 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 					batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
-					mask = mask_tokens(ob_state, 0)
+					mask = mask_tokens(batched_ob, 0)
 					mask = mask.cuda(non_blocking=True)
 	
 					batched_env_state = torch.tensor(batched_env_state)
 					batched_env_state = batched_env_state.cuda(non_blocking=True)
 					
-					ob_state = torch.tensor(ob_state)
+					ob_state = torch.tensor(batched_ob)
 					ob_state = ob_state.cuda(non_blocking=True)
 
 					with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
