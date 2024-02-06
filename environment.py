@@ -262,3 +262,12 @@ class Environment:
 		self.state[:, 2] = jit_z_score(self.action_history[start_index:end_index])  # Example scaling
 		# Combine all features into a single state array
 		return self.state
+	
+	def get_total_profit(self):
+		return self.total_profit
+	
+	def get_step_reward(self):
+		return self.step_reward
+	
+	def get_position(self):
+		return self.position

@@ -13,6 +13,13 @@ import random
 import multiprocessing as mp
 import torch.distributed as dist
 
+def path_function(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print(f'{path} created successfully')
+    else:
+        print(f'{path} already exists')
+
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -129,6 +136,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 	
 	raw_data_path = "/mnt/drive2/raw_data/"
 	batched_ob = torch.zeros((config['batch_size'], 256, 100, 2), dtype=torch.float32)
+
+	model_save_path = f'/media/qhawkins/Archive/MLM RL Models'
+	logging_path = f'/media/qhawkins/Archive/MLM RL Model Logs'
+	path_function(model_save_path)
+	path_function(logging_path)
+
 	for folder in glob.glob(raw_data_path + "*/"):
 		for idx, filename in enumerate(glob.glob(folder + "*")):
 			start_time = time.time()
@@ -155,66 +168,89 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)
 			pool = mp.Pool(config['num_threads'])
 			epsilon = config['epsilon']
-			with pool:
-				for timestep in range(parsed_file.shape[0]):
-					if timestep > 256:
-						ob_state = parsed_file[timestep, :, :, :]
-						epsilon = epsilon * .9999
-						for x in range(config['batch_size']):
-							batched_ob[x] = torch.tensor(ob_state).clone().detach()
 
-						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
-						result = [x.get() for x in pooled]
-						
-						batched_env_state = torch.tensor(np.stack(result, axis=0))
-						
-						#for idx, x in enumerate(result):
-						#	batched_env_state[idx] = torch.tensor(x)
-							#batched_env_state = result
+			with open(f'{logging_path}/rl_model_day_{idx}_rank_{rank}.txt', 'w') as f:
+				with pool:
+					for timestep in range(parsed_file.shape[0]):
+						if timestep > 256:
+							ob_state = parsed_file[timestep, :, :, :]
+							epsilon = epsilon * .9999
+							for x in range(config['batch_size']):
+								batched_ob[x] = torch.tensor(ob_state).clone().detach()
 
-						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
+							pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
+							result = [x.get() for x in pooled]
+							
+							batched_env_state = torch.tensor(np.stack(result, axis=0))
+							
+							#for idx, x in enumerate(result):
+							#	batched_env_state[idx] = torch.tensor(x)
+								#batched_env_state = result
 
-						mask = mask_tokens(batched_ob, 0)
-						mask = mask.cuda(non_blocking=True)
-		
-						batched_env_state = torch.tensor(batched_env_state)
-						batched_env_state = batched_env_state.cuda(non_blocking=True)
-						
-						ob_state = torch.tensor(batched_ob)
-						ob_state = ob_state.cuda(non_blocking=True)
+							batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
-						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
-							action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
+							mask = mask_tokens(batched_ob, 0)
+							mask = mask.cuda(non_blocking=True)
+			
+							batched_env_state = torch.tensor(batched_env_state)
+							batched_env_state = batched_env_state.cuda(non_blocking=True)
+							
+							ob_state = torch.tensor(batched_ob)
+							ob_state = ob_state.cuda(non_blocking=True)
 
-						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
+							with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
+								action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
-						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
-						result = [x.get() for x in pooled]
+							action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 
-						batched_returns = torch.tensor(np.array(result)).cuda()
-						batched_returns = torch.reshape(batched_returns, (config['batch_size'], 1))
-						
-						advantages: torch.Tensor = batched_returns - state_val
-						actor_loss = torch.mean(-action_logprobs * advantages.detach())
-						#actor_loss.backward(retain_graph=True)
+							pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
+							result = [x.get() for x in pooled]
 
-						critic_loss = mse_loss(state_val, batched_returns.detach().clone())
-						
-						combined_loss = actor_loss + critic_loss
-						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}, epsilon: {epsilon}')
-						print(100*'=')
-						combined_loss.backward()
-						#critic_loss.backward()
+							batched_returns = torch.tensor(np.array(result)).cuda()
+							batched_returns = torch.reshape(batched_returns, (config['batch_size'], 1))
+							
+							advantages: torch.Tensor = batched_returns - state_val
+							actor_loss = torch.mean(-action_logprobs * advantages.detach())
+							#actor_loss.backward(retain_graph=True)
 
-						
-						optimizer.step()
-						optimizer.zero_grad()
+							critic_loss = mse_loss(state_val, batched_returns.detach().clone())
+							
+							combined_loss = actor_loss + critic_loss
+							accumulated_profit = 0
+							accumulated_step_reward = 0
+							accumulated_position = 0
+
+							for thread_idx in range(config['num_threads']):
+								for env in environment_arr[thread_idx]:
+									accumulated_profit += env.get_total_profit()
+									accumulated_step_reward += env.get_step_reward()
+									accumulated_position += env.get_position()
+							
+							accumulated_profit = accumulated_profit / (config['num_threads'] * config['envs_per_thread'])
+							accumulated_step_reward = accumulated_step_reward / (config['num_threads'] * config['envs_per_thread'])
+							accumulated_position = accumulated_position / (config['num_threads'] * config['envs_per_thread'])
+
+							print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
+							print(100*'=')
+
+							f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
+
+							combined_loss.backward()
+							#critic_loss.backward()
+
+							
+							optimizer.step()
+							optimizer.zero_grad()
 
 
-					else:
-						for thread_idx in range(config['num_threads']):
-							for env in environment_arr[thread_idx]:
-								env.step(0, timestep)
+						else:
+							for thread_idx in range(config['num_threads']):
+								for env in environment_arr[thread_idx]:
+									env.step(0, timestep)
+			
+
+				torch.save(ddp_model.state_dict(), f'{model_save_path}/rl_model_day_{idx}_rank_{rank}.pth')
+
 
 
 def init_process(rank, config, world_size):
