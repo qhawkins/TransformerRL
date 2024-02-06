@@ -119,6 +119,8 @@ class ActorModel(torch.nn.Module):
         self.actor_layer_2 = te.Linear(256, 128)
         self.actor_layer_3 = torch.nn.Linear(128*time_size, 11)
                 
+        self.critic_layer_1 = te.Linear(128, 1)
+
         self.dropout = torch.nn.Dropout(dropout)
         self.relu = torch.nn.ReLU()
         #self.final_linear = te.Linear(transformer_size, 208, tp_group=tensor_parallel_group, sequence_parallel=True)
@@ -131,7 +133,7 @@ class ActorModel(torch.nn.Module):
         padded = torch.cat((input_tuple, self.padding), axis=1)
         padded_mask = torch.cat((mask, self.padding), axis=1)
 
-        input_tuple = self.state_embedding(input_tuple)
+        input_tuple = self.state_embedding(padded)
         
         input_tuple = self.positional_encoder(input_tuple)
         input_tuple = self.dropout(input_tuple)
@@ -183,8 +185,11 @@ class ActorModel(torch.nn.Module):
         full_state = self.relu(full_state)
         full_state = self.dropout(full_state)
         
-        output = self.actor_layer_3(full_state)
-        output = self.relu(output)
-        output = torch.nn.functional.softmax(output, dim=-2)
+        critic_output = self.critic_layer_1(full_state)
+        critic_output = self.relu(critic_output)
 
-        return output
+        actor_output = self.actor_layer_3(full_state)
+        actor_output = self.relu(actor_output)
+        actor_output = torch.nn.functional.softmax(actor_output, dim=-2)
+        
+        return actor_output, critic_output

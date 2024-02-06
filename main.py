@@ -108,37 +108,44 @@ def random_index_selection(index_start, num_steps, vector_size, time_dim):
 	return random_index
 
 
-def act(actor, state, env_num, epsilon):
-	action_probs = actor.forward(state)
+def act(env_state, env_num, epsilon, shared_ob_state, model_1, recipe):
+	action_probs, state_val = get_action(shared_ob_state, env_state, model=model_1, device='cuda:1', recipe=recipe)
+	
 	random_value = random.random()
 	
 	if random_value > epsilon:
 		action = torch.argmax(action_probs, dim=1)
 	else:
 		action = torch.multinomial(action_probs, 1, replacement=True)
-	# print("action created")
 	
 	action_logprobs = torch.zeros(env_num, device='cuda')
-	# print("action log probs created")
+	
 	for i in range(action_probs.size(0)):
 		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
-	# print("action log probs looped")
-	# print(f"state device: {state.device}")
 	
-	# print("state val created")
-
 	return action, action_logprobs, state_val
 
-def environment_step(environment, timestep, shared_ob_state, model_0, model_1, recipe):
+def environment_step(environment, timestep, shared_ob_state, model, recipe):
+	mse_loss = torch.nn.MSELoss()
 	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
+	batched_returns = np.zeros(len(environment), dtype=np.float32)
 	for idx, env in enumerate(environment):
 		batched_env_state[idx] = env.get_state(timestep)
-	
-	batched_actions = get_action(shared_ob_state, batched_env_state, model=model_1 if timestep % 2 == 0 else model_0, 
-				device='cuda:1' if timestep % 2 == 0 else 'cuda:0', recipe=recipe)
+	batched_actions, action_logprobs, state_val = act(batched_env_state, len(environment), .1, shared_ob_state, model, recipe)
 	
 	for idx, env in enumerate(environment):
 		env.step(batched_actions[idx], timestep)
+		batched_returns[idx] = env.get_step_reward()
+	
+	advantages: torch.Tensor = batched_returns - state_val
+	actor_loss = torch.mean(-action_logprobs * advantages.detach())
+	actor_loss.backward()
+
+	critic_loss = mse_loss(state_val, torch.tensor(batched_returns, device='cuda'))
+	critic_loss.backward()
+
+	return actor_loss, critic_loss
+
 	
 
 async def main():
@@ -181,9 +188,11 @@ async def main():
 					ob_state = parsed_file[timestep, :, :, :]
 					
 					for thread_idx in range(num_threads):
-						await pool.map_async(environment_step, (environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe))
-						"""thread pool"""
-						#environment_step(environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe)
+						actor_loss, critic_loss = await pool.map_async(environment_step, (environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe))
+						print(actor_loss.item())
+						print(critic_loss.item())
+						
+
 
 				else:
 					for thread_idx in range(num_threads):
