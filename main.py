@@ -206,7 +206,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 							action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 							action = torch.reshape(action, (config['num_threads'], config['envs_per_thread']))
-							action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
+							#action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
 							#state_val = torch.reshape(state_val, (config['num_threads'], config['envs_per_thread']))
 							
 							pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
