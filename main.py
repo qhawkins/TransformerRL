@@ -147,15 +147,13 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			if file is None:
 				continue
 			
-			num_threads = 2
-			env_per_thread = 32
-			pool = mp.Pool(num_threads)
-			thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256) for i in range(env_per_thread)]
-			[thread_env[i].reset(raw_ob, 100000, 0, 199999) for i in range(env_per_thread)]
-			environment_arr = [thread_env for i in range(num_threads)]
+			pool = mp.Pool(config['num_threads'])
+			thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256) for i in range(config['envs_per_thread'])]
+			[thread_env[i].reset(raw_ob, 100000, 0, 199999) for i in range(config['envs_per_thread'])]
+			environment_arr = [thread_env for i in range(config['num_threads'])]
 			
-			batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=np.float32)
-			batched_returns = torch.zeros(env_per_thread, dtype=np.float32)
+			batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
+			batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)
 
 			for timestep in range(parsed_file.shape[0]):
 				if timestep > 256:
@@ -164,11 +162,11 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						batched_ob[x] = torch.tensor(ob_state)
 
 					with pool:
-						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(num_threads)]
+						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						
 					for idx, x in enumerate(result):
-						batched_env_state[idx] = x
+						batched_env_state[idx] = torch.tensor(x)
 						#batched_env_state = result
 
 					batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
@@ -185,13 +183,13 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 					with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
 						action_probs, state_val = ddp_model(mask, batched_env_state, ob_state)
 
-					action, action_logprobs, state_val = act_calcs(env_per_thread, .2, action_probs, state_val)
+					action, action_logprobs, state_val = act_calcs(config['envs_per_thread'], .2, action_probs, state_val)
 
 					with pool:
-						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(num_threads)]
+						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 
-						batched_returns = result
+						batched_returns = torch.tensor(result)
 
 					advantages: torch.Tensor = batched_returns - state_val
 					actor_loss = torch.mean(-action_logprobs * advantages.detach())
@@ -207,7 +205,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 
 				else:
-					for thread_idx in range(num_threads):
+					for thread_idx in range(config['num_threads']):
 						for env in environment_arr[thread_idx]:
 							env.step(0, timestep)
 
