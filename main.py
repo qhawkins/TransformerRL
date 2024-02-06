@@ -68,19 +68,13 @@ def mask_tokens(data, mask_probability):
 	return mask
 
 def load_model(rank, tensor_parallel_group, config):
-	net = ActorModel(rank, tensor_parallel_group, config['transformer_init_method'], config['transformer_size'], 
-					 config['transformer_attention_size'], config['batch_size'], config['dropout'], config['fuse_qkv'])
+	net = ActorModel(config['batch_size'], rank, tensor_parallel_group, config['transformer_size'], config['transformer_attention_size'], config['dropout'], config['fuse_qkv'])
 	
 	net_state_dict = net.state_dict()
 	raw_state_dict = torch.load('/media/qhawkins/Archive/MLM Models/mlm_model_cluster_1_ddp/model_2_batch_100001_normal_768_64_40.pth')
 	
 	# Remove the module prefix from the keys
 	parsed_state_dict = {key.replace('module.', ''): value for key, value in raw_state_dict.items()}
-	print(parsed_state_dict.keys())
-	print(net_state_dict.keys())
-	[print(f'key inside: {key}') if key in parsed_state_dict else print(key) for key, value in net_state_dict.items()]
-	
-	exit()
 	# replace all items in net state dict that have correesponding keys in parsed state dict with their matching values
 	
 	net_state_dict = {key: parsed_state_dict[key] if key in parsed_state_dict else value for key, value in net_state_dict.items()}

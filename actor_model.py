@@ -8,108 +8,108 @@ import torch.jit as jit
 time_size = 256
 
 class ActorModel(torch.nn.Module):
-    def __init__(self, batch_size = 64, transformer_size=1024, transformer_attention_size=64, dropout=0.1, fuse_qkv=False):
+    def __init__(self, batch_size, rank, tensor_parallel_group, transformer_size=1024, transformer_attention_size=64, dropout=0.1, fuse_qkv=False):
         super().__init__()
         self.batch_size = batch_size
         self.state_embedding = torch.nn.Linear(208, transformer_size)
         
         self.encoder_transformer_layer_1 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
                                                      num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                     
+                                                     set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                      )
         self.encoder_transformer_layer_2 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
                                                      num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv, 
-                                                     
+                                                     set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                      )
         self.encoder_transformer_layer_3 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
                                                      num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv, 
-                                                     
+                                                     set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                      )
         self.encoder_transformer_layer_4 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
                                                      num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv, 
-                                                     
+                                                     set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                      )
         self.encoder_transformer_layer_5 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_6 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_7 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_8 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_9 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_10 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_11 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.encoder_transformer_layer_12 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='encoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         
 
         self.decoder_transformer_layer_1 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size, 
                                                      num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                     
+                                                     set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                      )
         self.decoder_transformer_layer_2 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_3 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_4 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_5 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_6 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_7 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_8 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_9 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                         num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                        
+                                                        set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                         )
         self.decoder_transformer_layer_10 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                             num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                            
+                                                            set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                             )
         self.decoder_transformer_layer_11 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                             num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                            
+                                                            set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                             )
         self.decoder_transformer_layer_12 = te.TransformerLayer(hidden_size=transformer_size, ffn_hidden_size=transformer_size,
                                                             num_attention_heads=transformer_attention_size, layer_type='decoder', fuse_qkv_params=fuse_qkv,
-                                                            
+                                                            set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                             )
         
         self.state_layer = torch.nn.Linear(3, 512)
