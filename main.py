@@ -200,7 +200,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						critic_loss = mse_loss(state_val, batched_returns.detach().clone())
 						
 						combined_loss = actor_loss + critic_loss
-						print(f'day: {idx}, step: {timestep}, combined loss: {combined_loss}')
+						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}')
 						combined_loss.backward()
 						#critic_loss.backward()
 
