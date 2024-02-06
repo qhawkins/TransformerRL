@@ -181,7 +181,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 					ob_state = ob_state.cuda(non_blocking=True)
 
 					with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
-						action_probs, state_val = ddp_model(mask, batched_env_state, ob_state)
+						action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
 					action, action_logprobs, state_val = act_calcs(config['envs_per_thread'], .2, action_probs, state_val)
 
