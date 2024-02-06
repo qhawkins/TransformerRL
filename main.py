@@ -121,7 +121,8 @@ def env_step(environment, timestep, actions):
 	for idx, env in enumerate(environment):
 		env.step(batched_actions[idx], timestep)
 		batched_rewards[idx] = env.get_step_reward()
-	return batched_rewards
+		
+	return (batched_rewards, environment)
 		
 
 def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config):
@@ -212,7 +213,11 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 							pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
 							result = [x.get() for x in pooled]
 
-							batched_returns = torch.tensor(np.array(result)).cuda()
+							batched_returns = torch.tensor(np.array([x[0] for x in result])).cuda()
+							
+							for thread_idx in range(config['num_threads']):
+								environment_arr[thread_idx] = result[thread_idx][1]
+														
 							batched_returns = torch.reshape(batched_returns, (config['batch_size'], 1))
 							
 							advantages: torch.Tensor = batched_returns - state_val
@@ -231,6 +236,8 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 									accumulated_profit += env.get_total_profit()
 									accumulated_step_reward += env.get_step_reward()
 									accumulated_position += env.get_position()
+									
+
 							
 							accumulated_profit = accumulated_profit / (config['num_threads'] * config['envs_per_thread'])
 							accumulated_step_reward = accumulated_step_reward / (config['num_threads'] * config['envs_per_thread'])

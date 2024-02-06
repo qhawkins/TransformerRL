@@ -78,10 +78,10 @@ class Environment:
 
 	def step(self, action, timestep):
 		self.current_tick = timestep + self.timestep_offset
-		
+		current_position = self.position
 		'''needs to take into account the "true" price from the order book'''
 		self.past_profit = self.total_profit
-		self.total_profit = (self.find_fill_price(self.position, -self.position, self.current_tick) + self.cash) / self.start_cash
+		self.total_profit = (self.find_fill_price(current_position, -current_position, self.current_tick) + self.cash) / self.start_cash
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		
@@ -94,20 +94,25 @@ class Environment:
 			potential_account_value = (self.cash + (self.leverage_factor * potential_trade_cost))
 			# Check if account value after trade meets margin requirements
 			if potential_trade_cost < self.cash and potential_cash_after_trade >= (potential_account_value * self.margin_requirement_percentage):
+				#print('executing trade')
 				self.execute_trade(action)
+				#print(self.position)
+	
 
 		elif action < 0:  # Selling or Negative Action
-			adjustment_cost = self.find_fill_price(self.position, action) + self.find_fill_price(action, action)
+			adjustment_cost = self.find_fill_price(current_position, action) + self.find_fill_price(action, action)
 			# Here, you may also want to consider how selling affects margin usage and account equity
 			# For simplicity, ensure net effect of the action doesn't exceed a certain loss threshold, considering margin
 			if adjustment_cost > -100000 and (self.cash + adjustment_cost) >= (self.cash * self.margin_requirement_percentage):
+				#print('executing trade')
 				self.execute_trade(action)
-
+				#print(self.position)
+				
 		self.position_history[self.current_tick] = self.position
 		if self.position > 0:
-			self.account_value = self.cash + self.find_fill_price(self.position, self.position)
+			self.account_value = self.cash + self.find_fill_price(current_position, current_position)
 		elif self.position < 0:
-			self.account_value = self.cash - self.find_fill_price(self.position, -self.position)
+			self.account_value = self.cash - self.find_fill_price(current_position, current_position)
 		else:
 			self.account_value = self.cash
 		
@@ -119,25 +124,24 @@ class Environment:
 		# Compute reward
 		self.step_reward = self.calculate_reward()
 		self.previous_action = action
+		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
 
 
 	def execute_trade(self, action):
 		# Simplified trading logic
-
 		if action > 0:  # Buy
 			self.cash -= (self.find_fill_price(action, action, self.current_tick) + (.0035 * abs(action)))
 			self.position += action
 		elif action < 0:  # Sell
 			self.cash += (self.find_fill_price(action, action, self.current_tick) - (.0035 * abs(action)))
 			self.position += action
-		else:
-			return
 
-
+		
 	def calculate_reward(self):
 		step_reward = 0.0
+		current_position = self.position
 		# Example reward calculation
-		profit_vec = self.future_profits(self.offset, self.position, self.current_tick)
+		profit_vec = self.future_profits(self.offset, current_position, self.current_tick)
 		step_reward += self.weighted_future_rewards(profit_vec, self.gamma)
 		
 		if abs(self.position) > 50:
@@ -201,42 +205,6 @@ class Environment:
 
 		return liquidity_used
 
-	def find_fill_price_old(self, quantity, action, timestep = None):
-		'''quantity is positive for buy and negative for sell'''
-		if timestep is None:
-			timestep = self.current_tick
-		
-		current_price_slice = self.prices_v[timestep]
-		liquidity_used = 0
-		
-		if action > 0:
-			index = 50
-			while abs(quantity) > 0:
-				price = current_price_slice[index, 0]
-				liquidity = current_price_slice[index, 1]
-				if liquidity > abs(quantity):
-					return (price*quantity)+liquidity_used
-				else:
-					liquidity_used += price*liquidity
-					quantity-=liquidity
-					index += 1
-			return liquidity_used		
-		
-		elif action < 0:
-			index = 49
-			while abs(quantity) > 0:
-				price = current_price_slice[index, 0]
-				liquidity = current_price_slice[index, 1]
-				if liquidity > abs(quantity):
-					return (price*quantity)-liquidity_used
-				else:
-					liquidity_used += price*liquidity
-					quantity+=liquidity
-					index -= 1
-			return liquidity_used
-		
-		return liquidity_used
-
 	def future_profits(self, buffer_len, position, current_tick):
 		# Simplified future profits calculation
 		fut_profit = np.zeros(buffer_len)
@@ -263,11 +231,11 @@ class Environment:
 		# Combine all features into a single state array
 		return self.state
 	
-	def get_total_profit(self):
+	def get_total_profit(self) -> float:
 		return self.total_profit
 	
-	def get_step_reward(self):
+	def get_step_reward(self) -> float:
 		return self.step_reward
 	
-	def get_position(self):
+	def get_position(self) -> int:
 		return self.position
