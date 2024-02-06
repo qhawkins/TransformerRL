@@ -129,7 +129,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 	recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
 	
 	raw_data_path = "/mnt/drive2/raw_data/"
-
+	batched_ob = torch.zeros((config['batch_size'], 256, 100, 2), dtype=torch.float32)
 	for folder in glob.glob(raw_data_path + "*/"):
 		for idx, filename in enumerate(glob.glob(folder + "*")):
 			start_time = time.time()
@@ -154,23 +154,31 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			[thread_env[i].reset(raw_ob, 100000, 0, 199999) for i in range(env_per_thread)]
 			environment_arr = [thread_env for i in range(num_threads)]
 			
-			batched_env_state = np.zeros((env_per_thread, 256, 3), dtype=np.float32)
-			batched_returns = np.zeros(env_per_thread, dtype=np.float32)
+			batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=np.float32)
+			batched_returns = torch.zeros(env_per_thread, dtype=np.float32)
 
 			for timestep in range(parsed_file.shape[0]):
 				if timestep > 256:
 					ob_state = parsed_file[timestep, :, :, :]
-					
+					for x in range(config['batch_size']):
+						batched_ob[x] = torch.tensor(ob_state)
+
 					with pool:
 						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(num_threads)]
 						result = [x.get() for x in pooled]
 						
-						batched_env_state = result
+					for idx, x in enumerate(result):
+						batched_env_state[idx] = x
+						#batched_env_state = result
+
+					batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
 					mask = mask_tokens(ob_state, 0)
 					mask = mask.cuda(non_blocking=True)
-					env_state = torch.tensor(env_state)
-					env_state = env_state.cuda(non_blocking=True)
+	
+					batched_env_state = torch.tensor(batched_env_state)
+					batched_env_state = batched_env_state.cuda(non_blocking=True)
+					
 					ob_state = torch.tensor(ob_state)
 					ob_state = ob_state.cuda(non_blocking=True)
 
@@ -230,7 +238,7 @@ if __name__ == '__main__':
 		"epochs": max_num_epochs,
 		"learning_rate": 5e-6,
 		#"lr": tune.choice([5e-4]),
-		"batch_size": 40,
+		"batch_size": 64,
 		'prefetch': 1024,
 		'num_workers': 6,
 		'use_scheduler': False,
@@ -243,7 +251,8 @@ if __name__ == '__main__':
 		#'optimizer': tune.choice(['SGD', 'Adam', 'AdamW'])
 		'backend': 'nccl',
 		'fuse_qkv': False,
-		'num_threads': 2
+		'num_threads': 2,
+		'envs_per_thread': 32
 
 	}
 	
