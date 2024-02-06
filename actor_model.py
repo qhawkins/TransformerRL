@@ -172,8 +172,7 @@ class ActorModel(torch.nn.Module):
         transformer_output = self.dropout(transformer_output)
 
         full_state = torch.cat((state_output, transformer_output), axis=-1)
-        print(f'full state shape: {full_state.shape}')
-
+        
         full_state = self.actor_layer_1(full_state)
         full_state = self.relu(full_state)
         full_state = self.dropout(full_state)

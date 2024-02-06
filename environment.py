@@ -73,10 +73,11 @@ class Environment:
 		self.previous_action_reward = 0
 
 	# Include other methods from the C++ class as Python methods here
+	def get_step_reward(self):
+		return self.step_reward
 
 	def step(self, action, timestep):
 		self.current_tick = timestep + self.timestep_offset
-		ep_buffer_hit = False
 		
 		'''needs to take into account the "true" price from the order book'''
 		self.past_profit = self.total_profit

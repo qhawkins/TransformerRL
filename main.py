@@ -84,7 +84,7 @@ def load_model(rank, tensor_parallel_group, config):
 
 
 
-def act_calcs(env_num, epsilon, action_probs, state_val):
+def act_calcs(batch_size, epsilon, action_probs, state_val):
 	random_value = random.random()
 	
 	if random_value > epsilon:
@@ -92,8 +92,9 @@ def act_calcs(env_num, epsilon, action_probs, state_val):
 	else:
 		action = torch.multinomial(action_probs, 1, replacement=True)
 	
-	action_logprobs = torch.zeros(env_num, device='cuda')
-	
+	action_logprobs = torch.zeros(batch_size, device='cuda')
+	print(action_probs.size())
+	print(action.size())
 	for i in range(action_probs.size(0)):
 		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
 	
@@ -115,8 +116,7 @@ def env_step(environment, timestep, actions):
 		
 
 def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config):
-	pool = mp.Pool(config['num_threads'])
-
+	
 	torch.cuda.set_device(rank)
 	
 	model = load_model(rank, tensor_parallel_group, config).to('cuda')
@@ -154,60 +154,59 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			
 			batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
 			batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)
+			pool = mp.Pool(config['num_threads'])
+			with pool:
+				for timestep in range(parsed_file.shape[0]):
+					if timestep > 256:
+						ob_state = parsed_file[timestep, :, :, :]
+						for x in range(config['batch_size']):
+							batched_ob[x] = torch.tensor(ob_state).clone().detach()
 
-			for timestep in range(parsed_file.shape[0]):
-				if timestep > 256:
-					ob_state = parsed_file[timestep, :, :, :]
-					for x in range(config['batch_size']):
-						batched_ob[x] = torch.tensor(ob_state).clone().detach()
-
-					with pool:
 						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						
-					for idx, x in enumerate(result):
-						batched_env_state[idx] = torch.tensor(x)
-						#batched_env_state = result
+						for idx, x in enumerate(result):
+							batched_env_state[idx] = torch.tensor(x)
+							#batched_env_state = result
 
-					batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
+						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
-					mask = mask_tokens(batched_ob, 0)
-					mask = mask.cuda(non_blocking=True)
-	
-					batched_env_state = torch.tensor(batched_env_state)
-					batched_env_state = batched_env_state.cuda(non_blocking=True)
-					
-					ob_state = torch.tensor(batched_ob)
-					ob_state = ob_state.cuda(non_blocking=True)
+						mask = mask_tokens(batched_ob, 0)
+						mask = mask.cuda(non_blocking=True)
+		
+						batched_env_state = torch.tensor(batched_env_state)
+						batched_env_state = batched_env_state.cuda(non_blocking=True)
+						
+						ob_state = torch.tensor(batched_ob)
+						ob_state = ob_state.cuda(non_blocking=True)
 
-					with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
-						action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
+						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
+							action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
-					action, action_logprobs, state_val = act_calcs(config['envs_per_thread'], .2, action_probs, state_val)
+						action, action_logprobs, state_val = act_calcs(config['batch_size'], .2, action_probs, state_val)
 
-					with pool:
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 
 						batched_returns = torch.tensor(result)
 
-					advantages: torch.Tensor = batched_returns - state_val
-					actor_loss = torch.mean(-action_logprobs * advantages.detach())
-					actor_loss.backward()
+						advantages: torch.Tensor = batched_returns - state_val
+						actor_loss = torch.mean(-action_logprobs * advantages.detach())
+						actor_loss.backward()
 
-					critic_loss = mse_loss(state_val, torch.tensor(batched_returns, device='cuda'))
-					critic_loss.backward()
+						critic_loss = mse_loss(state_val, torch.tensor(batched_returns, device='cuda'))
+						critic_loss.backward()
 
-					print(actor_loss.item())
-					print(critic_loss.item())
-					optimizer.step()
-					optimizer.zero_grad()
+						print(actor_loss.item())
+						print(critic_loss.item())
+						optimizer.step()
+						optimizer.zero_grad()
 
 
-				else:
-					for thread_idx in range(config['num_threads']):
-						for env in environment_arr[thread_idx]:
-							env.step(0, timestep)
+					else:
+						for thread_idx in range(config['num_threads']):
+							for env in environment_arr[thread_idx]:
+								env.step(0, timestep)
 
 
 def init_process(rank, config, world_size):
