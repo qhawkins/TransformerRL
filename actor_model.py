@@ -189,6 +189,6 @@ class ActorModel(torch.nn.Module):
 
         actor_output = self.actor_layer_3(full_state)
         #actor_output = self.relu(actor_output)
-        actor_output = torch.nn.functional.softmax(actor_output, dim=-2)
+        actor_output = torch.nn.functional.softmax(actor_output, dim=1)
         
         return actor_output, critic_output
