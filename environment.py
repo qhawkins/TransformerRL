@@ -117,7 +117,7 @@ class Environment:
 		# Compute reward
 		self.step_reward = self.calculate_reward()
 		self.previous_action = action
-		return ep_buffer_hit
+
 
 	def execute_trade(self, action):
 		# Simplified trading logic

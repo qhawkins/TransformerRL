@@ -11,8 +11,8 @@ from actor_model import ActorModel
 from transformer_engine.common.recipe import Format, DelayedScaling
 import random
 import multiprocessing as mp
-from multiprocessing import shared_memory
-import asyncio
+import torch.distributed as dist
+
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -67,10 +67,12 @@ def mask_tokens(data, mask_probability):
 	# Masking the data
 	return mask
 
-def load_model():
-	net = ActorModel(transformer_size=1024, transformer_attention_size=64, dropout=.1)
+def load_model(rank, tensor_parallel_group, config):
+	net = ActorModel(rank, tensor_parallel_group, config['transformer_init_method'], config['transformer_size'], 
+					 config['transformer_attention_size'], config['batch_size'], config['dropout'], config['fuse_qkv'])
+	
 	net_state_dict = net.state_dict()
-	raw_state_dict = torch.load('/media/qhawkins/Archive/MLM Models/mlm_model_cluster_2_ddp/model_1_0.004021_normal_1024_64_40.pth')
+	raw_state_dict = torch.load('/media/qhawkins/Archive/MLM Models/mlm_model_cluster_1_ddp/model_2_batch_100001_normal_768_64_40.pth')
 	
 	# Remove the module prefix from the keys
 	parsed_state_dict = {key.replace('module.', ''): value for key, value in raw_state_dict.items()}
@@ -87,30 +89,8 @@ def load_model():
 	return net
 
 
-def get_action(ob_state, env_state, model, device, recipe):
-	mask = mask_tokens(ob_state, 0)
-	mask = mask.to(device, non_blocking=True)
-	env_state = torch.tensor(env_state)
-	env_state = env_state.to(device, non_blocking=True)
-	ob_state = torch.tensor(ob_state)
-	ob_state = ob_state.to(device, non_blocking=True)
-	with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
-		action = model(mask, ob_state, env_state)
 
-	return action
-	# Initialize transformer
-
-
-def random_index_selection(index_start, num_steps, vector_size, time_dim):
-	random_index = random.randint(index_start, vector_size - num_steps - time_dim)
-	# Uncomment the next line to print the random index
-	# print(f"random index: {random_index}")
-	return random_index
-
-
-def act(env_state, env_num, epsilon, shared_ob_state, model_1, recipe):
-	action_probs, state_val = get_action(shared_ob_state, env_state, model=model_1, device='cuda:1', recipe=recipe)
-	
+def act_calcs(env_num, epsilon, action_probs, state_val):
 	random_value = random.random()
 	
 	if random_value > epsilon:
@@ -125,34 +105,37 @@ def act(env_state, env_num, epsilon, shared_ob_state, model_1, recipe):
 	
 	return action, action_logprobs, state_val
 
-def environment_step(environment, timestep, shared_ob_state, model, recipe):
-	mse_loss = torch.nn.MSELoss()
+def env_state(environment, timestep, shared_ob_state):
 	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
-	batched_returns = np.zeros(len(environment), dtype=np.float32)
 	for idx, env in enumerate(environment):
 		batched_env_state[idx] = env.get_state(timestep)
-	batched_actions, action_logprobs, state_val = act(batched_env_state, len(environment), .1, shared_ob_state, model, recipe)
-	
+	return batched_env_state
+
+def env_step(environment, timestep, actions):
+	batched_actions = actions.cpu().numpy()
+	batched_rewards = np.zeros(len(environment), dtype=np.float32)
 	for idx, env in enumerate(environment):
 		env.step(batched_actions[idx], timestep)
-		batched_returns[idx] = env.get_step_reward()
+		batched_rewards[idx] = env.get_step_reward()
+	return batched_rewards
+		
+
+def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config):
+	pool = mp.Pool(config['num_threads'])
+
+	torch.cuda.set_device(rank)
 	
-	advantages: torch.Tensor = batched_returns - state_val
-	actor_loss = torch.mean(-action_logprobs * advantages.detach())
-	actor_loss.backward()
+	model = load_model(rank, tensor_parallel_group, config).to('cuda')
 
-	critic_loss = mse_loss(state_val, torch.tensor(batched_returns, device='cuda'))
-	critic_loss.backward()
+	ddp_model = torch.nn.parallel.DistributedDataParallel(model, process_group=data_parallel_group)
+	optimizer = torch.optim.AdamW(ddp_model.parameters(), lr=config['learning_rate'])
+	mse_loss = torch.nn.MSELoss()
 
-	return actor_loss, critic_loss
-
-	
-
-async def main():
 	fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
 	recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
 	
 	raw_data_path = "/mnt/drive2/raw_data/"
+
 	for folder in glob.glob(raw_data_path + "*/"):
 		for idx, filename in enumerate(glob.glob(folder + "*")):
 			start_time = time.time()
@@ -170,47 +153,121 @@ async def main():
 			if file is None:
 				continue
 			
-			num_threads = 4
+			num_threads = 2
 			env_per_thread = 32
 			pool = mp.Pool(num_threads)
 			thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.09, time=256) for i in range(env_per_thread)]
 			thread_env = [thread_env[i].reset() for i in range(env_per_thread)]
 			environment_arr = [thread_env for i in range(num_threads)]
 			
-			model_0 = load_model().to('cuda:0')
-			model_1 = load_model().to('cuda:1')
-
-			#create thread pool
-
+			batched_env_state = np.zeros((env_per_thread, 256, 3), dtype=np.float32)
+			batched_returns = np.zeros(env_per_thread, dtype=np.float32)
 
 			for timestep in range(parsed_file.shape[0]):
 				if timestep > 256:
 					ob_state = parsed_file[timestep, :, :, :]
 					
-					for thread_idx in range(num_threads):
-						actor_loss, critic_loss = await pool.map_async(environment_step, (environment_arr[thread_idx], timestep, ob_state, model_0, model_1, recipe))
-						print(actor_loss.item())
-						print(critic_loss.item())
+					with pool:
+						pool = [pool.apply_async(env_state, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(num_threads)]
+						result = pool.get()
 						
+						for i, result in enumerate(result):
+							batched_env_state[i] = result
+
+					mask = mask_tokens(ob_state, 0)
+					mask = mask.cuda(non_blocking=True)
+					env_state = torch.tensor(env_state)
+					env_state = env_state.cuda(non_blocking=True)
+					ob_state = torch.tensor(ob_state)
+					ob_state = ob_state.cuda(non_blocking=True)
+
+					with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
+						action_probs, state_val = ddp_model(mask, batched_env_state, ob_state)
+
+					action, action_logprobs, state_val = act_calcs(env_per_thread, .2, action_probs, state_val)
+
+					with pool:
+						pool = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(num_threads)]
+						result = pool.get()
+						for idx, result in enumerate(result):
+							batched_returns[idx] = result
+
+					advantages: torch.Tensor = batched_returns - state_val
+					actor_loss = torch.mean(-action_logprobs * advantages.detach())
+					actor_loss.backward()
+
+					critic_loss = mse_loss(state_val, torch.tensor(batched_returns, device='cuda'))
+					critic_loss.backward()
+
+					print(actor_loss.item())
+					print(critic_loss.item())
+					optimizer.step()
+					optimizer.zero_grad()
 
 
 				else:
 					for thread_idx in range(num_threads):
 						for env in environment_arr[thread_idx]:
 							env.step(0, timestep)
-			
-			
-			
-			print(100*'=')
-			"""
-			if idx >10:
-				exit()
-			"""
-			
 
-	# Initialize environment
-	
-	return 0
+
+def init_process(rank, config, world_size):
+	os.environ['MASTER_ADDR'] = '127.0.0.1'
+	os.environ['MASTER_PORT'] = '8000'
+	print(f"Running basic DDP example on rank {rank}.")
+	dist.init_process_group(backend=config['backend'], rank=rank, world_size=world_size)
+	data_parallel_group = torch.distributed.new_group(ranks=[rank], backend=config['backend'])
+	tensor_parallel_group = torch.distributed.new_group(ranks=[rank], backend=config['backend'])
+	print('creating dataset')
+	print('loaders created')
+	create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
+	dist.destroy_process_group()
+
+
 
 if __name__ == '__main__':
-	asyncio.run(main())
+	size=2
+	max_num_epochs = 100
+	config = {
+		#'embedding_size': tune.choice([2, 4]),
+		#'transformer_size': tune.choice([2048, 4096, 8192]),
+		'transformer_size': 768,
+		'use_streaming': True,
+		'transformer_attention_size': 64,
+		"epochs": max_num_epochs,
+		"lr": 5e-6,
+		#"lr": tune.choice([5e-4]),
+		"batch_size": 40,
+		'prefetch': 1024,
+		'num_workers': 6,
+		'use_scheduler': False,
+		#'model_depth': tune.choice(['shallow']),
+		'model_depth': 'normal',
+		'dropout': 0.1,
+		#'transformer_init_method': tune.choice([initialize_normal, initialize_kaiming_uniform, initialize_kaiming_normal, initialize_xavier_uniform, initialize_xavier_normal]),
+		'optimizer': 'AdamW',
+		'accumulation_iter': 4,
+		#'optimizer': tune.choice(['SGD', 'Adam', 'AdamW'])
+		'backend': 'nccl',
+		'fuse_qkv': False,
+		'num_threads': 2
+
+	}
+	
+	#os.environ['CUDA_LAUNCH_BLOCKING']='1'
+	
+	print('dataset loaded')
+	mp.set_start_method("spawn")
+	processes = []
+	for rank in range(size):
+		print(f'rank: {rank}')
+		p = mp.Process(target=init_process, args=(rank, config, size))
+		print('pre start')
+		p.start()
+		print('started')
+		processes.append(p)
+		print('appended')
+
+	for p in processes:
+		print('joining')
+		p.join()
