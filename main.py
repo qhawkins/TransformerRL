@@ -154,10 +154,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
 			batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)
 			pool = mp.Pool(config['num_threads'])
+			epsilon = config['epsilon']
 			with pool:
 				for timestep in range(parsed_file.shape[0]):
 					if timestep > 256:
 						ob_state = parsed_file[timestep, :, :, :]
+						epsilon = epsilon * .9999
 						for x in range(config['batch_size']):
 							batched_ob[x] = torch.tensor(ob_state).clone().detach()
 
@@ -184,7 +186,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
 							action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
-						action, action_logprobs, state_val = act_calcs(config['batch_size'], .2, action_probs, state_val)
+						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
@@ -199,7 +201,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						critic_loss = mse_loss(state_val, batched_returns.detach().clone())
 						
 						combined_loss = actor_loss + critic_loss
-						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}')
+						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}, epsilon: {epsilon}')
 						print(100*'=')
 						combined_loss.backward()
 						#critic_loss.backward()
@@ -255,7 +257,8 @@ if __name__ == '__main__':
 		'backend': 'nccl',
 		'fuse_qkv': False,
 		'num_threads': 2,
-		'envs_per_thread': 16
+		'envs_per_thread': 16,
+		'epsilon': .9,
 
 	}
 	
