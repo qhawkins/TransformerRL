@@ -125,14 +125,10 @@ class Environment:
 		# Simplified trading logic
 
 		if action > 0:  # Buy
-			print(f'cash before buy: {self.cash}')
 			self.cash -= (self.find_fill_price(action, action, self.current_tick) + (.0035 * abs(action)))
-			print(f'cash after buy: {self.cash}')
 			self.position += action
 		elif action < 0:  # Sell
-			print(f'cash before sell: {self.cash}')
 			self.cash += (self.find_fill_price(action, action, self.current_tick) - (.0035 * abs(action)))
-			print(f'cash after sell: {self.cash}')
 			self.position += action
 		else:
 			return
@@ -218,7 +214,6 @@ class Environment:
 			while abs(quantity) > 0:
 				price = current_price_slice[index, 0]
 				liquidity = current_price_slice[index, 1]
-				print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
 				if liquidity > abs(quantity):
 					return (price*quantity)+liquidity_used
 				else:
@@ -232,7 +227,6 @@ class Environment:
 			while abs(quantity) > 0:
 				price = current_price_slice[index, 0]
 				liquidity = current_price_slice[index, 1]
-				print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
 				if liquidity > abs(quantity):
 					return (price*quantity)-liquidity_used
 				else:
