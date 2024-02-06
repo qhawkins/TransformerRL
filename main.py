@@ -202,7 +202,8 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 								action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 
 							action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
-
+							print(action)
+							print(100*'=')
 							pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action)) for thread_idx in range(config['num_threads'])]
 							result = [x.get() for x in pooled]
 
@@ -230,10 +231,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 							accumulated_step_reward = accumulated_step_reward / (config['num_threads'] * config['envs_per_thread'])
 							accumulated_position = accumulated_position / (config['num_threads'] * config['envs_per_thread'])
 
-							print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
+							print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
 							print(100*'=')
 
-							f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss}, actor loss: {actor_loss}, critic loss: {critic_loss}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
+							f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
 
 							combined_loss.backward()
 							#critic_loss.backward()
