@@ -159,7 +159,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 				if timestep > 256:
 					ob_state = parsed_file[timestep, :, :, :]
 					for x in range(config['batch_size']):
-						batched_ob[x] = torch.tensor(ob_state)
+						batched_ob[x] = torch.tensor(ob_state).clone().detach()
 
 					with pool:
 						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, ob_state)) for thread_idx in range(config['num_threads'])]
@@ -236,7 +236,7 @@ if __name__ == '__main__':
 		"epochs": max_num_epochs,
 		"learning_rate": 5e-6,
 		#"lr": tune.choice([5e-4]),
-		"batch_size": 64,
+		"batch_size": 32,
 		'prefetch': 1024,
 		'num_workers': 6,
 		'use_scheduler': False,
@@ -250,7 +250,7 @@ if __name__ == '__main__':
 		'backend': 'nccl',
 		'fuse_qkv': False,
 		'num_threads': 2,
-		'envs_per_thread': 32
+		'envs_per_thread': 16
 
 	}
 	

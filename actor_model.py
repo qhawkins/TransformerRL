@@ -112,14 +112,14 @@ class ActorModel(torch.nn.Module):
                                                             set_parallel_mode=True, tp_group=tensor_parallel_group, sequence_parallel=True
                                                             )
         
-        self.state_layer = torch.nn.Linear(3, 512)
-        self.transformer_output_layer = te.Linear(transformer_size, 512)
+        self.state_layer = torch.nn.Linear(3, int(transformer_size/2))
+        self.transformer_output_layer = te.Linear(transformer_size, int(transformer_size/2))
 
         self.actor_layer_1 = te.Linear(transformer_size, 256)
         self.actor_layer_2 = te.Linear(256, 128)
         self.actor_layer_3 = torch.nn.Linear(128*time_size, 11)
                 
-        self.critic_layer_1 = te.Linear(128, 1)
+        self.critic_layer_1 = torch.nn.Linear(128*time_size, 1)
 
         self.dropout = torch.nn.Dropout(dropout)
         self.relu = torch.nn.ReLU()
@@ -132,8 +132,7 @@ class ActorModel(torch.nn.Module):
     def forward(self, mask, input_tuple, env_state):
         padded = torch.cat((input_tuple, self.padding), axis=2)
         padded_mask = torch.cat((mask, self.padding), axis=2)
-
-        input_tuple = self.state_embedding(padded)
+        input_tuple = self.state_embedding(torch.reshape(padded, (self.batch_size, time_size, 208)))
         
         input_tuple = self.positional_encoder(input_tuple)
         input_tuple = self.dropout(input_tuple)
@@ -173,7 +172,8 @@ class ActorModel(torch.nn.Module):
         transformer_output = self.dropout(transformer_output)
 
         full_state = torch.cat((state_output, transformer_output), axis=-1)
-        
+        print(f'full state shape: {full_state.shape}')
+
         full_state = self.actor_layer_1(full_state)
         full_state = self.relu(full_state)
         full_state = self.dropout(full_state)
