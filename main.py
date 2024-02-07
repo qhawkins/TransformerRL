@@ -186,6 +186,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		with open(f'{logging_path}/rl_model_day_{idx}_rank_{rank}.txt', 'w') as f:
 			with pool:
 				for timestep in range(parsed_file.shape[0]):
+					timestep_time_start = time.time()
 					if timestep > 256:
 						ob_state = parsed_file[timestep, :, :, :]
 						epsilon = epsilon * .995
@@ -200,18 +201,22 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
 						ob_state = ob_state.cuda(non_blocking=True)
-
+						forward_time_start = time.time()
 						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
 							action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
+						forward_time_end = time.time()
+						print(f'forward time: {forward_time_end - forward_time_start}')
+						
 
 						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 						action = torch.reshape(action, (config['num_threads'], config['envs_per_thread']))
 						#action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
 						#state_val = torch.reshape(state_val, (config['num_threads'], config['envs_per_thread']))
-						
+						pool_time_start = time.time()
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
-
+						pool_time_end = time.time()
+						print(f'pool time: {pool_time_end - pool_time_start}')
 						batched_returns = torch.tensor(np.array([x[0] for x in result])).cuda()
 						
 						for thread_idx in range(config['num_threads']):
@@ -241,11 +246,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						accumulated_profit = accumulated_profit / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_step_reward = accumulated_step_reward / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_position = accumulated_position / (config['num_threads'] * config['envs_per_thread'])
+						timestep_time_end = time.time()
 
-						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
+						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}')
 						print(100*'=')
 
-						f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}')
+						f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}')
 
 						combined_loss.backward()
 						#critic_loss.backward()
