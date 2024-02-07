@@ -77,6 +77,7 @@ class Environment:
 		return self.step_reward
 
 	def step(self, action, timestep):
+		self.current_price_slice = self.prices_v[timestep]
 		self.current_tick = timestep + self.timestep_offset
 		current_position = self.position
 		'''needs to take into account the "true" price from the order book'''
@@ -153,17 +154,16 @@ class Environment:
 	'''function to find the fill price of the order'''
 	def find_fill_price(self, quantity, action, timestep=None):
 		'''quantity is positive for buy and negative for sell'''
-		if timestep is None:
+		if timestep is not None:
+			self.current_price_slice = self.prices_v[timestep]
+		else:
 			timestep = self.current_tick
-
-		current_price_slice = self.prices_v[timestep]
 		liquidity_used = 0
-
 		if action > 0:  # Buying
 			index = 50
 			while abs(quantity) > 0:
-				price = current_price_slice[index, 0]
-				liquidity = current_price_slice[index, 1]
+				price = self.current_price_slice[index, 0]
+				liquidity = self.current_price_slice[index, 1]
 				#print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
 				if liquidity >= abs(quantity):
 					if quantity < 0:
@@ -184,8 +184,8 @@ class Environment:
 		elif action < 0:  # Selling
 			index = 49
 			while abs(quantity) > 0:
-				price = current_price_slice[index, 0]
-				liquidity = current_price_slice[index, 1]
+				price = self.current_price_slice[index, 0]
+				liquidity = self.current_price_slice[index, 1]
 				#print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
 				
 				if liquidity >= abs(quantity):

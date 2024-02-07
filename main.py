@@ -200,10 +200,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						
 						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
-						ob_state = ob_state.cuda(non_blocking=True)
+						batched_ob = batched_ob.cuda(non_blocking=True)
 						forward_time_start = time.time()
 						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
-							action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
+							action_probs, state_val = ddp_model(mask, batched_ob, batched_env_state)
 						forward_time_end = time.time()
 						print(f'forward time: {forward_time_end - forward_time_start}')
 
