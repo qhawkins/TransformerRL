@@ -188,10 +188,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 				for timestep in range(parsed_file.shape[0]):
 					timestep_time_start = time.time()
 					if timestep > 256:
-						ob_state = parsed_file[timestep, :, :, :]
+						ob_state = torch.tensor(parsed_file[timestep, :, :, :])
 						epsilon = epsilon * .995
 						for x in range(config['batch_size']):
-							batched_ob[x] = torch.tensor(ob_state).clone().detach()
+							batched_ob[x] = ob_state.clone().detach()
 
 						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
@@ -206,7 +206,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 							action_probs, state_val = ddp_model(mask, ob_state, batched_env_state)
 						forward_time_end = time.time()
 						print(f'forward time: {forward_time_end - forward_time_start}')
-						
+
 
 						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 						action = torch.reshape(action, (config['num_threads'], config['envs_per_thread']))
