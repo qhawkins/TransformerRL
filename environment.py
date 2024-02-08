@@ -1,5 +1,6 @@
 import numpy as np
 import numba as nb
+from find_fill_price import find_fill_price
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -30,8 +31,6 @@ class Environment:
 		self.total_profit_history = np.zeros(len(self.prices_v))
 		self.st_profit_history = np.zeros(len(self.prices_v))
 		self.action_history = np.zeros(len(self.prices_v))
-		self.w_short = 0.5
-		self.w_long = 0.5
 		self.offset = offset_init
 		self.gamma = gamma_init
 		self.time_dim = time
@@ -77,19 +76,18 @@ class Environment:
 		return self.step_reward
 
 	def step(self, action, timestep):
-		self.current_price_slice = self.prices_v[timestep]
 		self.current_tick = timestep + self.timestep_offset
 		current_position = self.position
 		'''needs to take into account the "true" price from the order book'''
 		self.past_profit = self.total_profit
-		self.total_profit = (self.find_fill_price(current_position, -current_position, self.current_tick) + self.cash) / self.start_cash
+		self.total_profit = (find_fill_price(self.prices_v, current_position, -current_position, self.current_tick) + self.cash) / self.start_cash
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		
 		
 
 		if action > 0:  # Buying
-			potential_trade_cost = self.find_fill_price(action, action)
+			potential_trade_cost = find_fill_price(self.prices_v, action, action, timestep)
 			potential_cash_after_trade = self.cash - potential_trade_cost
 			# Calculate total account value considering leverage and potential trade
 			potential_account_value = (self.cash + (self.leverage_factor * potential_trade_cost))
@@ -101,7 +99,7 @@ class Environment:
 	
 
 		elif action < 0:  # Selling or Negative Action
-			adjustment_cost = self.find_fill_price(current_position, action) + self.find_fill_price(action, action)
+			adjustment_cost = find_fill_price(self.prices_v, current_position, action, timestep) + find_fill_price(self.prices_v, action, action, timestep)
 			# Here, you may also want to consider how selling affects margin usage and account equity
 			# For simplicity, ensure net effect of the action doesn't exceed a certain loss threshold, considering margin
 			if adjustment_cost > -100000 and (self.cash + adjustment_cost) >= (self.cash * self.margin_requirement_percentage):
@@ -111,9 +109,9 @@ class Environment:
 				
 		self.position_history[self.current_tick] = self.position
 		if self.position > 0:
-			self.account_value = self.cash + self.find_fill_price(current_position, current_position)
+			self.account_value = self.cash + find_fill_price(self.prices_v, current_position, current_position, timestep)
 		elif self.position < 0:
-			self.account_value = self.cash - self.find_fill_price(current_position, current_position)
+			self.account_value = self.cash - find_fill_price(self.prices_v, current_position, current_position, timestep)
 		else:
 			self.account_value = self.cash
 		
@@ -131,10 +129,10 @@ class Environment:
 	def execute_trade(self, action):
 		# Simplified trading logic
 		if action > 0:  # Buy
-			self.cash -= (self.find_fill_price(action, action, self.current_tick) + (.0035 * abs(action)))
+			self.cash -= (find_fill_price(self.prices_v, action, action, self.current_tick) + (.0035 * abs(action)))
 			self.position += action
 		elif action < 0:  # Sell
-			self.cash += (self.find_fill_price(action, action, self.current_tick) - (.0035 * abs(action)))
+			self.cash += (find_fill_price(self.prices_v, action, action, self.current_tick) - (.0035 * abs(action)))
 			self.position += action
 
 		
@@ -152,66 +150,14 @@ class Environment:
 		return step_reward
 	
 	'''function to find the fill price of the order'''
-	def find_fill_price(self, quantity, action, timestep=None):
-		'''quantity is positive for buy and negative for sell'''
-		if timestep is not None:
-			self.current_price_slice = self.prices_v[timestep]
-		else:
-			timestep = self.current_tick
-		liquidity_used = 0
-		if action > 0:  # Buying
-			index = 50
-			while abs(quantity) > 0:
-				price = self.current_price_slice[index, 0]
-				liquidity = self.current_price_slice[index, 1]
-				#print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
-				if liquidity >= abs(quantity):
-					if quantity < 0:
-						liquidity_used -= price * abs(quantity)
-					else:
-						liquidity_used += price * abs(quantity)
-
-					break  # Exit the loop as the entire quantity has been filledq
-				else:
-					liquidity_used += price * liquidity
-					if quantity < 0:
-						quantity += liquidity
-					else:
-						quantity -= liquidity
-
-					index += 1
-
-		elif action < 0:  # Selling
-			index = 49
-			while abs(quantity) > 0:
-				price = self.current_price_slice[index, 0]
-				liquidity = self.current_price_slice[index, 1]
-				#print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
-				
-				if liquidity >= abs(quantity):
-					if quantity < 0:
-						liquidity_used += price * abs(quantity)
-					else:
-						liquidity_used -= price * abs(quantity)
-
-					break  # Exit the loop as the entire quantity has been filled
-				else:
-					liquidity_used += price * liquidity
-					if quantity < 0:
-						quantity += liquidity  # Correctly increase towards zero for negative quantities
-					else:
-						quantity -= liquidity
-					index -= 1
-
-		return liquidity_used
-
+	
 	def future_profits(self, buffer_len, position, current_tick):
 		# Simplified future profits calculation
 		fut_profit = np.zeros(buffer_len)
-		initial_basis = self.find_fill_price(position, -position, current_tick)+self.cash
+		initial_basis = find_fill_price(self.prices_v, position, -position, current_tick)+self.cash
 		#initial_basis = (position * self.prices_v[current_tick]) + self.cash
 		for i in range(buffer_len):
-			fut_profit[i] = (self.find_fill_price(position, -position, current_tick + i)+self.cash)/initial_basis
+			fut_profit[i] = (find_fill_price(self.prices_v, position, -position, current_tick + i)+self.cash)/initial_basis
 			#5000 * (((position * self.prices_v[current_tick + i]) + self.cash) - initial_basis) / initial_basis
 		return fut_profit
 
