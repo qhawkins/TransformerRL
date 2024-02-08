@@ -189,7 +189,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 					timestep_time_start = time.time()
 					if timestep > 256:
 						ob_state = torch.tensor(parsed_file[timestep, :, :, :])
-						epsilon = epsilon * .995
+						epsilon = epsilon * .999
 						for x in range(config['batch_size']):
 							batched_ob[x] = ob_state.clone().detach()
 
