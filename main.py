@@ -153,7 +153,9 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 
 	random.shuffle(filenames)
+	idx = 0
 	for filename in filenames:
+		idx += 1
 		start_time = time.time()
 		file = np.load(filename)
 		print(f"File load time: {time.time() - start_time}")
@@ -201,22 +203,22 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
 						batched_ob = batched_ob.cuda(non_blocking=True)
-						forward_time_start = time.time()
+						#forward_time_start = time.time()
 						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
 							action_probs, state_val = ddp_model(mask, batched_ob, batched_env_state)
-						forward_time_end = time.time()
-						print(f'forward time: {forward_time_end - forward_time_start}')
+						#forward_time_end = time.time()
+						#print(f'forward time: {forward_time_end - forward_time_start}')
 
 
 						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 						action = torch.reshape(action, (config['num_threads'], config['envs_per_thread']))
 						#action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
 						#state_val = torch.reshape(state_val, (config['num_threads'], config['envs_per_thread']))
-						pool_time_start = time.time()
+						#pool_time_start = time.time()
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
-						pool_time_end = time.time()
-						print(f'pool time: {pool_time_end - pool_time_start}')
+						#pool_time_end = time.time()
+						#print(f'pool time: {pool_time_end - pool_time_start}')
 						batched_returns = torch.tensor(np.array([x[0] for x in result])).cuda()
 						
 						for thread_idx in range(config['num_threads']):
