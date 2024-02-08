@@ -1,6 +1,7 @@
 import numpy as np
 import numba as nb
 from find_fill_price import find_fill_price
+from weighted_future_rewards import weighted_future_rewards
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -141,7 +142,7 @@ class Environment:
 		current_position = self.position
 		# Example reward calculation
 		profit_vec = self.future_profits(self.offset, current_position, self.current_tick)
-		step_reward += self.weighted_future_rewards(profit_vec, self.gamma)
+		step_reward += weighted_future_rewards(profit_vec, self.gamma)
 		
 		if abs(self.position) > 50:
 			step_reward -= abs(float(self.position)) / 1000
@@ -160,11 +161,6 @@ class Environment:
 			fut_profit[i] = (find_fill_price(self.prices_v, position, -position, current_tick + i)+self.cash)/initial_basis
 			#5000 * (((position * self.prices_v[current_tick + i]) + self.cash) - initial_basis) / initial_basis
 		return fut_profit
-
-	def weighted_future_rewards(self, unweighted_vector, gamma):
-		# Apply discount factor
-		discounted_rewards = unweighted_vector * (gamma ** np.arange(len(unweighted_vector)))
-		return np.sum(discounted_rewards)
 
 	def get_state(self, tick):
 		# Assuming the state includes the last `time_dim` timesteps of prices, predictions, and other features
