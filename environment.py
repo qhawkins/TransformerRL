@@ -2,6 +2,7 @@ import numpy as np
 import numba as nb
 from find_fill_price import find_fill_price
 from weighted_future_rewards import weighted_future_rewards
+from future_profits import future_profits
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -141,7 +142,7 @@ class Environment:
 		step_reward = 0.0
 		current_position = self.position
 		# Example reward calculation
-		profit_vec = self.future_profits(self.offset, current_position, self.current_tick)
+		profit_vec = future_profits(self.prices_v, self.cash, self.offset, current_position, self.current_tick)
 		step_reward += weighted_future_rewards(profit_vec, self.gamma)
 		
 		if abs(self.position) > 50:
@@ -150,17 +151,6 @@ class Environment:
 		self.total_reward += step_reward
 		return step_reward
 	
-	'''function to find the fill price of the order'''
-	
-	def future_profits(self, buffer_len, position, current_tick):
-		# Simplified future profits calculation
-		fut_profit = np.zeros(buffer_len)
-		initial_basis = find_fill_price(self.prices_v, position, -position, current_tick)+self.cash
-		#initial_basis = (position * self.prices_v[current_tick]) + self.cash
-		for i in range(buffer_len):
-			fut_profit[i] = (find_fill_price(self.prices_v, position, -position, current_tick + i)+self.cash)/initial_basis
-			#5000 * (((position * self.prices_v[current_tick + i]) + self.cash) - initial_basis) / initial_basis
-		return fut_profit
 
 	def get_state(self, tick):
 		# Assuming the state includes the last `time_dim` timesteps of prices, predictions, and other features
