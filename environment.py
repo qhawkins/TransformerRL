@@ -128,7 +128,7 @@ class Environment:
 		# Compute reward
 		self.step_reward = self.calculate_reward()
 		self.running_reward.append(self.step_reward)
-		self.step_reward = (self.step_reward-np.mean(self.running_reward))/np.std(self.running_reward)
+		self.step_reward = (self.step_reward-np.mean(self.running_reward))/(np.std(self.running_reward)+.000001)
 		self.previous_action = action
 		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
 
