@@ -143,10 +143,12 @@ class Environment:
 		current_position = self.position
 		# Example reward calculation
 		profit_vec = future_profits(self.prices_v, self.cash, self.offset, current_position, self.current_tick)
-		step_reward += weighted_future_rewards(profit_vec, self.gamma)
+		step_reward += weighted_future_rewards(profit_vec, self.gamma)*100
 		
+		'''
 		if abs(self.position) > 50:
 			step_reward -= abs(float(self.position)) / 1000
+		'''
 		
 		self.total_reward += step_reward
 		return step_reward
