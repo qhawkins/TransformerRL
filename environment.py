@@ -87,7 +87,7 @@ class Environment:
 		self.st_profit_history[self.current_tick] = self.st_profit
 		
 		
-
+		self.action_taken = 0
 		if action > 0:  # Buying
 			potential_trade_cost = find_fill_price(self.prices_v, action, action, timestep)
 			potential_cash_after_trade = self.cash - potential_trade_cost
@@ -97,6 +97,7 @@ class Environment:
 			if potential_trade_cost < self.cash and potential_cash_after_trade >= (potential_account_value * self.margin_requirement_percentage):
 				#print('executing trade')
 				self.execute_trade(action)
+				
 				#print(self.position)
 	
 
@@ -133,17 +134,19 @@ class Environment:
 		if action > 0:  # Buy
 			self.cash -= (find_fill_price(self.prices_v, action, action, self.current_tick) + (.0035 * abs(action)))
 			self.position += action
+			self.action_taken = action
 		elif action < 0:  # Sell
 			self.cash += (find_fill_price(self.prices_v, action, action, self.current_tick) - (.0035 * abs(action)))
 			self.position += action
+			self.action_taken = action
 
 		
 	def calculate_reward(self):
 		step_reward = 0.0
 		current_position = self.position
 		# Example reward calculation
-		profit_vec = future_profits(self.prices_v, self.cash, self.offset, current_position, self.current_tick)
-		step_reward += weighted_future_rewards(profit_vec, self.gamma)*100
+		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken)
+		step_reward += weighted_future_rewards(profit_vec, self.gamma)*100000
 		
 		'''
 		if abs(self.position) > 50:
