@@ -38,9 +38,11 @@ class Environment:
 		self.time_dim = time
 		self.timestep_offset = offset_init
 		self.state = np.zeros((self.time_dim, 3))
+		self.running_reward = []
 		
 
 	def reset(self, prices, cash, position, account_value):
+		self.running_reward = []
 		self.prices_v = prices
 		# Initialize or reset other attributes as needed
 		self.prediction = 0
@@ -125,6 +127,8 @@ class Environment:
 		
 		# Compute reward
 		self.step_reward = self.calculate_reward()
+		self.running_reward.append(self.step_reward)
+		self.step_reward = (self.step_reward-np.mean(self.running_reward))/np.std(self.running_reward)
 		self.previous_action = action
 		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
 
