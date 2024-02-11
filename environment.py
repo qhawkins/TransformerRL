@@ -39,7 +39,11 @@ class Environment:
 		self.timestep_offset = offset_init
 		self.state = np.zeros((self.time_dim, 3))
 		self.running_reward = []
-		
+		self.buy_hold_position = 0
+		self.sell_hold_position = 0
+		self.bh_profit = 0
+		self.sh_profit = 0
+
 
 	def reset(self, prices, cash, position, account_value):
 		self.running_reward = []
@@ -74,6 +78,10 @@ class Environment:
 		self.total_profit_reward = 0
 		self.omega_ratio_history = 0
 		self.previous_action_reward = 0
+		self.buy_hold_position = 0
+		self.sell_hold_position = 0
+		self.bh_profit = 0
+		self.sh_profit = 0
 
 	# Include other methods from the C++ class as Python methods here
 	def get_step_reward(self):
@@ -87,8 +95,25 @@ class Environment:
 		self.total_profit = (find_fill_price(self.prices_v, current_position, -current_position, self.current_tick) + self.cash) / self.start_cash
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
+		if timestep == 0:
+			counter = -1
+			while True:
+				sh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
+				if sh_paid < self.cash:
+					self.sell_hold_position = counter+1
+					break
+				counter -= 1
+
+			counter = 1
+
+			while True:
+				bh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
+				if bh_paid > self.cash:
+					self.buy_hold_position = counter-1
+					break
+				counter += 1
 		
-		
+
 		self.action_taken = 0
 		if action > 0:  # Buying
 			potential_trade_cost = find_fill_price(self.prices_v, action, action, timestep)
@@ -120,7 +145,14 @@ class Environment:
 		else:
 			self.account_value = self.cash
 		
+		self.bh_profit = self.cash + find_fill_price(self.prices_v, self.buy_hold_position, -self.buy_hold_position, timestep)
+		self.sh_profit = self.cash - find_fill_price(self.prices_v, self.sell_hold_position, -self.sell_hold_position, timestep)
+
+		self.bh_profit = self.bh_profit / self.start_cash
+		self.sh_profit = self.sh_profit / self.start_cash
+
 		self.total_profit = self.account_value / self.start_cash
+
 		self.cash_history[self.current_tick] = self.cash
 		self.total_profit_history[self.current_tick] = self.total_profit
 		self.action_history[self.current_tick] = action
@@ -180,3 +212,8 @@ class Environment:
 	
 	def get_position(self) -> int:
 		return self.position
+	
+	def get_bh_profit(self) -> float:
+		return self.bh_profit
+	def get_sh_profit(self) -> float:
+		return self.sh_profit
