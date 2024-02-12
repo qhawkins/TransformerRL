@@ -43,7 +43,9 @@ class Environment:
 		self.sell_hold_position = 0
 		self.bh_profit = 0
 		self.sh_profit = 0
-
+		self.bh_paid = 0
+		self.sh_paid = 0
+		self.counter = 0
 
 	def reset(self, prices, cash, position, account_value):
 		self.running_reward = []
@@ -82,6 +84,9 @@ class Environment:
 		self.sell_hold_position = 0
 		self.bh_profit = 0
 		self.sh_profit = 0
+		self.bh_paid = 0
+		self.sh_paid = 0
+		self.counter = 0
 
 	# Include other methods from the C++ class as Python methods here
 	def get_step_reward(self):
@@ -97,28 +102,33 @@ class Environment:
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		if timestep == 0:
-			counter = 1
+			self.counter = 1
 
 			while True:
-				bh_paid, liq_left = find_fill_price(self.prices_v, counter, timestep)
-				print(f'main bh_paid: {bh_paid}, counter: {counter}')
-				if self.cash+bh_paid < 0:
-					self.buy_hold_position = counter-1
-					bh_paid, liq_left = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
+				self.bh_paid, liq_left = find_fill_price(self.prices_v, self.counter, timestep)
+				if liq_left is None:
+					self.buy_hold_position = self.counter-1
+					self.bh_paid, liq_left = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
 					break
-				counter += 1
-			print(f'bh_paid: {bh_paid}, liq left: {liq_left}, counter: {counter}')
-			counter = -1
+				if self.cash+self.bh_paid < 0:
+					self.buy_hold_position = self.counter-1
+					self.bh_paid, liq_left = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
+					break
+				self.counter += 1
+			print(f'self.bh_paid: {self.bh_paid}, liq left: {liq_left}, counter: {self.counter}')
+			self.counter = -1
 			while True:
-				sh_paid, liq_left = find_fill_price(self.prices_v, counter, timestep)
-
-				print(f'sh_paid: {sh_paid}, counter: {counter}')
-				if self.cash+sh_paid > 0:
-					self.sell_hold_position = counter+1
-					sh_paid, liq_left = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
+				self.sh_paid, liq_left = find_fill_price(self.prices_v, self.counter, timestep)
+				if liq_left is None:
+					self.sell_hold_position = self.counter+1
+					self.sh_paid, liq_left = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
 					break
-				counter -= 1
-			print(f'sh_paid: {sh_paid}, liq left: {liq_left}, counter: {counter}')
+				if self.cash-self.sh_paid < 0:
+					self.sell_hold_position = self.counter+1
+					self.sh_paid, liq_left = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
+					break
+				self.counter -= 1
+			print(f'self.sh_paid: {self.sh_paid}, liq left: {liq_left}, counter: {self.counter}')
 			exit()
 			
 			

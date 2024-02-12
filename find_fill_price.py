@@ -9,7 +9,7 @@ def find_fill_price(prices_v, action, timestep=None):
         index = 50
         while action > 0:
             if index > 99:
-                return liquidity_used, action
+                return liquidity_used, None
             
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
@@ -27,7 +27,7 @@ def find_fill_price(prices_v, action, timestep=None):
         index = 49
         while action < 0:
             if index < 0:
-                return liquidity_used, action
+                return liquidity_used, None
             
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
