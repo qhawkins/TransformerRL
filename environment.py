@@ -143,10 +143,10 @@ class Environment:
 				#print(self.position)
 				
 		self.position_history[self.current_tick] = self.position
-		self.account_value = self.cash + find_fill_price(self.prices_v, current_position, -current_position, timestep)
+		self.account_value = self.cash - find_fill_price(self.prices_v, current_position, -current_position, timestep)
 
-		self.bh_profit = self.cash + find_fill_price(self.prices_v, self.buy_hold_position, -self.buy_hold_position, timestep)
-		self.sh_profit = self.cash + find_fill_price(self.prices_v, self.sell_hold_position, -self.sell_hold_position, timestep)
+		self.bh_profit = self.cash - find_fill_price(self.prices_v, self.buy_hold_position, -self.buy_hold_position, timestep)
+		self.sh_profit = self.cash - find_fill_price(self.prices_v, self.sell_hold_position, -self.sell_hold_position, timestep)
 
 		self.bh_profit = self.bh_profit / self.start_cash
 		self.sh_profit = self.sh_profit / self.start_cash
