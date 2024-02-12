@@ -109,17 +109,15 @@ class Environment:
 			
 			counter = -1
 			while True:
-				sh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
-
+				sh_paid = find_fill_price(self.prices_v, counter, counter, timestep)
+				
 				if self.cash-sh_paid < 0:
 					self.sell_hold_position = counter+1
-					sh_paid = find_fill_price(self.prices_v, counter+1, -(counter+1), timestep)
+					sh_paid = find_fill_price(self.prices_v, -(counter+1), counter+1, timestep)
 					break
 				counter -= 1
 			
-			print(f'sh_paid: {sh_paid}, counter: {counter}')
-			exit()
-
+			
 
 		self.action_taken = 0
 		if action > 0:  # Buying
