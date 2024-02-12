@@ -96,23 +96,28 @@ class Environment:
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		if timestep == 0:
-			counter = -1
-			while True:
-				sh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
-				if sh_paid < self.cash:
-					self.sell_hold_position = counter+1
-					break
-				counter -= 1
-
 			counter = 1
 
 			while True:
 				bh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
+				print(bh_paid)
 				if bh_paid > self.cash:
 					self.buy_hold_position = counter-1
+					print(self.buy_hold_position)
+					exit()
 					break
 				counter += 1
-		
+
+			counter = -1
+			while True:
+				sh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
+
+				if sh_paid < self.cash:
+					self.sell_hold_position = counter+1
+					print(self.sell_hold_position)
+					break
+				counter -= 1
+
 
 		self.action_taken = 0
 		if action > 0:  # Buying
@@ -139,12 +144,13 @@ class Environment:
 				
 		self.position_history[self.current_tick] = self.position
 		if self.position > 0:
-			self.account_value = self.cash + find_fill_price(self.prices_v, current_position, current_position, timestep)
+			self.account_value = self.cash + find_fill_price(self.prices_v, current_position, -current_position, timestep)
 		elif self.position < 0:
-			self.account_value = self.cash - find_fill_price(self.prices_v, current_position, current_position, timestep)
+			self.account_value = self.cash - find_fill_price(self.prices_v, current_position, -current_position, timestep)
 		else:
 			self.account_value = self.cash
 		
+
 		self.bh_profit = self.cash + find_fill_price(self.prices_v, self.buy_hold_position, -self.buy_hold_position, timestep)
 		self.sh_profit = self.cash - find_fill_price(self.prices_v, self.sell_hold_position, -self.sell_hold_position, timestep)
 

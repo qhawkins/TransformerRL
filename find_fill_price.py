@@ -22,11 +22,7 @@ def find_fill_price(prices_v, quantity, action, timestep=None):
                 break  # Exit the loop as the entire quantity has been filledq
             else:
                 liquidity_used += price * liquidity
-                if quantity < 0:
-                    quantity += liquidity
-                else:
-                    quantity -= liquidity
-
+                quantity -= liquidity
                 index += 1
 
     elif action < 0:  # Selling
@@ -37,18 +33,12 @@ def find_fill_price(prices_v, quantity, action, timestep=None):
             #print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
             
             if liquidity >= abs(quantity):
-                if quantity < 0:
-                    liquidity_used += price * abs(quantity)
-                else:
-                    liquidity_used -= price * abs(quantity)
+                liquidity_used -= price * abs(quantity)
 
                 break  # Exit the loop as the entire quantity has been filled
             else:
-                liquidity_used += price * liquidity
-                if quantity < 0:
-                    quantity += liquidity  # Correctly increase towards zero for negative quantities
-                else:
-                    quantity -= liquidity
+                liquidity_used -= price * liquidity
+                quantity -= liquidity
                 index -= 1
 
     return liquidity_used
