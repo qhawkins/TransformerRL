@@ -22,7 +22,7 @@ def jit_z_score(x):
 
 
 class Environment:
-	def __init__(self, prices=None, offset_init=0, gamma_init=0.0, time=256, margin_requirement_percentage=.25, leverage_factor=4):
+	def __init__(self, prices=None, offset_init=0, gamma_init=0.95, time=256, margin_requirement_percentage=.25, leverage_factor=4):
 		if prices is None:
 			print("Error: prices cannot be None")
 		self.margin_requirement_percentage = margin_requirement_percentage
@@ -92,30 +92,32 @@ class Environment:
 		current_position = self.position
 		'''needs to take into account the "true" price from the order book'''
 		self.past_profit = self.total_profit
-		self.total_profit = (find_fill_price(self.prices_v, current_position, -current_position, self.current_tick) + self.cash) / self.start_cash
+		self.total_profit = (find_fill_price(self.prices_v, -current_position, self.current_tick) + self.cash) / self.start_cash
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		if timestep == 0:
 			counter = 1
 
 			while True:
-				bh_paid = find_fill_price(self.prices_v, counter, counter, timestep)
-				
+				bh_paid = find_fill_price(self.prices_v, counter, timestep)
 				if self.cash+bh_paid < 0:
 					self.buy_hold_position = counter-1
-					bh_paid = find_fill_price(self.prices_v, counter-1, -(counter-1), timestep)
+					bh_paid = find_fill_price(self.prices_v, -(counter-1), timestep)
 					break
 				counter += 1
+			print(f'bh_paid: {bh_paid}, counter: {counter}')
 			
 			counter = -1
 			while True:
-				sh_paid = find_fill_price(self.prices_v, counter, counter, timestep)
+				sh_paid = find_fill_price(self.prices_v, counter, timestep)
 				
 				if self.cash-sh_paid < 0:
 					self.sell_hold_position = counter+1
-					sh_paid = find_fill_price(self.prices_v, -(counter+1), counter+1, timestep)
+					sh_paid = find_fill_price(self.prices_v, counter+1, timestep)
 					break
 				counter -= 1
+			print(f'sh_paid: {sh_paid}, counter: {counter}')
+			exit()
 			
 			
 

@@ -1,4 +1,3 @@
-import numba as nb
 
 #@nb.njit(cache=True, fastmath=True)
 def find_fill_price(prices_v, action, timestep=None):
@@ -8,12 +7,12 @@ def find_fill_price(prices_v, action, timestep=None):
     
     if action > 0:
         index = 50
-        while action > 0:
+        while abs(action) > 0:
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
 
-            if liquidity >= action:
-                liquidity_used -= price * action
+            if liquidity >= abs(action):
+                liquidity_used -= price * abs(action)
                 return liquidity_used
             else:
                 liquidity_used -= price * liquidity
@@ -22,7 +21,7 @@ def find_fill_price(prices_v, action, timestep=None):
         
     elif action < 0:
         index = 49
-        while action < 0:
+        while abs(action) > 0:
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
 
@@ -31,7 +30,7 @@ def find_fill_price(prices_v, action, timestep=None):
                 return liquidity_used
             else:
                 liquidity_used += price * liquidity
-                action += liquidity
+                action -= liquidity
                 index -= 1
 
     return liquidity_used
