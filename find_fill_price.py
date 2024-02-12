@@ -14,14 +14,11 @@ def find_fill_price(prices_v, quantity, action, timestep=None):
             liquidity = current_price_slice[index, 1]
             #print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
             if liquidity >= abs(quantity):
-                if quantity < 0:
-                    liquidity_used -= price * abs(quantity)
-                else:
-                    liquidity_used += price * abs(quantity)
-
-                break  # Exit the loop as the entire quantity has been filledq
+                liquidity_used -= price * abs(quantity)
+                return liquidity_used
+            
             else:
-                liquidity_used += price * liquidity
+                liquidity_used -= price * liquidity
                 quantity -= liquidity
                 index += 1
 
@@ -30,14 +27,13 @@ def find_fill_price(prices_v, quantity, action, timestep=None):
         while abs(quantity) > 0:
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
-            #print(f'price: {price}, liquidity: {liquidity}, index: {index}, quantity: {quantity}')
             
             if liquidity >= abs(quantity):
                 liquidity_used -= price * abs(quantity)
 
-                break  # Exit the loop as the entire quantity has been filled
+                return liquidity_used
             else:
-                liquidity_used -= price * liquidity
+                liquidity_used += price * liquidity
                 quantity -= liquidity
                 index -= 1
 
