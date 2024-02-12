@@ -99,21 +99,23 @@ class Environment:
 			counter = 1
 
 			while True:
-				bh_paid = find_fill_price(self.prices_v, counter, timestep)
+				bh_paid, liq_left = find_fill_price(self.prices_v, counter, timestep)
+				print(liq_left)
+
 				if self.cash+bh_paid < 0:
 					self.buy_hold_position = counter-1
-					bh_paid = find_fill_price(self.prices_v, -(counter-1), timestep)
+					bh_paid, liq_left = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
 					break
 				counter += 1
-			print(f'bh_paid: {bh_paid}, counter: {counter}')
-			
+			print(f'bh_paid: {bh_paid}, liq left: {liq_left}, counter: {counter}')
+			exit()
 			counter = -1
 			while True:
 				sh_paid = find_fill_price(self.prices_v, counter, timestep)
-				
-				if self.cash-sh_paid < 0:
+				print(f'sh_paid: {sh_paid}, counter: {counter}')
+				if self.cash+sh_paid > 0:
 					self.sell_hold_position = counter+1
-					sh_paid = find_fill_price(self.prices_v, counter+1, timestep)
+					sh_paid, liq_left = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
 					break
 				counter -= 1
 			print(f'sh_paid: {sh_paid}, counter: {counter}')
