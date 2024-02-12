@@ -100,11 +100,10 @@ class Environment:
 
 			while True:
 				bh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
-				print(bh_paid)
-				if bh_paid > self.cash:
+				print(f'bh_paid: {bh_paid}')
+				exit()
+				if self.cash+bh_paid < 0:
 					self.buy_hold_position = counter-1
-					print(self.buy_hold_position)
-					exit()
 					break
 				counter += 1
 
@@ -112,9 +111,8 @@ class Environment:
 			while True:
 				sh_paid = find_fill_price(self.prices_v, counter, -counter, timestep)
 
-				if sh_paid < self.cash:
+				if self.cash-sh_paid < 0:
 					self.sell_hold_position = counter+1
-					print(self.sell_hold_position)
 					break
 				counter -= 1
 
@@ -143,16 +141,10 @@ class Environment:
 				#print(self.position)
 				
 		self.position_history[self.current_tick] = self.position
-		if self.position > 0:
-			self.account_value = self.cash + find_fill_price(self.prices_v, current_position, -current_position, timestep)
-		elif self.position < 0:
-			self.account_value = self.cash - find_fill_price(self.prices_v, current_position, -current_position, timestep)
-		else:
-			self.account_value = self.cash
-		
+		self.account_value = self.cash + find_fill_price(self.prices_v, current_position, -current_position, timestep)
 
 		self.bh_profit = self.cash + find_fill_price(self.prices_v, self.buy_hold_position, -self.buy_hold_position, timestep)
-		self.sh_profit = self.cash - find_fill_price(self.prices_v, self.sell_hold_position, -self.sell_hold_position, timestep)
+		self.sh_profit = self.cash + find_fill_price(self.prices_v, self.sell_hold_position, -self.sell_hold_position, timestep)
 
 		self.bh_profit = self.bh_profit / self.start_cash
 		self.sh_profit = self.sh_profit / self.start_cash
@@ -173,14 +165,9 @@ class Environment:
 
 	def execute_trade(self, action):
 		# Simplified trading logic
-		if action > 0:  # Buy
-			self.cash -= (find_fill_price(self.prices_v, action, action, self.current_tick) + (.0035 * abs(action)))
-			self.position += action
-			self.action_taken = action
-		elif action < 0:  # Sell
-			self.cash += (find_fill_price(self.prices_v, action, action, self.current_tick) - (.0035 * abs(action)))
-			self.position += action
-			self.action_taken = action
+		self.cash += (find_fill_price(self.prices_v, action, action, self.current_tick) - (.0035 * abs(action)))
+		self.position += action
+		self.action_taken = action
 
 		
 	def calculate_reward(self):
@@ -221,5 +208,6 @@ class Environment:
 	
 	def get_bh_profit(self) -> float:
 		return self.bh_profit
+	
 	def get_sh_profit(self) -> float:
 		return self.sh_profit
