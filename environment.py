@@ -92,7 +92,8 @@ class Environment:
 		current_position = self.position
 		'''needs to take into account the "true" price from the order book'''
 		self.past_profit = self.total_profit
-		self.total_profit = (find_fill_price(self.prices_v, -current_position, self.current_tick) + self.cash) / self.start_cash
+		total_profit_liquidity, total_profit_action = find_fill_price(self.prices_v, current_position, self.current_tick)
+		self.total_profit = total_profit_liquidity / self.start_cash
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		if timestep == 0:
@@ -100,25 +101,24 @@ class Environment:
 
 			while True:
 				bh_paid, liq_left = find_fill_price(self.prices_v, counter, timestep)
-				print(liq_left)
-
+				
 				if self.cash+bh_paid < 0:
 					self.buy_hold_position = counter-1
 					bh_paid, liq_left = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
 					break
 				counter += 1
 			print(f'bh_paid: {bh_paid}, liq left: {liq_left}, counter: {counter}')
-			exit()
 			counter = -1
 			while True:
-				sh_paid = find_fill_price(self.prices_v, counter, timestep)
+				sh_paid, liq_left = find_fill_price(self.prices_v, counter, timestep)
+
 				print(f'sh_paid: {sh_paid}, counter: {counter}')
 				if self.cash+sh_paid > 0:
 					self.sell_hold_position = counter+1
 					sh_paid, liq_left = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
 					break
 				counter -= 1
-			print(f'sh_paid: {sh_paid}, counter: {counter}')
+			print(f'sh_paid: {sh_paid}, liq left: {liq_left}, counter: {counter}')
 			exit()
 			
 			
