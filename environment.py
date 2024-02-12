@@ -101,7 +101,7 @@ class Environment:
 
 			while True:
 				bh_paid, liq_left = find_fill_price(self.prices_v, counter, timestep)
-				
+				print(f'main bh_paid: {bh_paid}, counter: {counter}')
 				if self.cash+bh_paid < 0:
 					self.buy_hold_position = counter-1
 					bh_paid, liq_left = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)

@@ -13,7 +13,7 @@ def find_fill_price(prices_v, action, timestep=None):
             
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
-            print(f'price: {price}, liquidity: {liquidity}, index: {index}')
+            #print(f'price: {price}, liquidity: {liquidity}, index: {index}')
             if liquidity >= action:
                 liquidity_used -= price * action
                 action = 0
