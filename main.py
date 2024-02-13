@@ -194,7 +194,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						ob_state = torch.tensor(parsed_file[timestep, :, :, :])
 						#epsilon = epsilon * .9995
 						'''sine of the form 1024 * sin(t) where t is the timestep, this is the epsilon decay function'''
-						epsilon = 1024 * math.sin(timestep)
+						epsilon = (math.sin(timestep/128)+1)/2
 						for x in range(config['batch_size']):
 							batched_ob[x] = ob_state.clone().detach()
 
