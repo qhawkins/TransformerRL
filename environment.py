@@ -108,7 +108,7 @@ class Environment:
 		
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
-		if timestep == 0:
+		if timestep == 255:
 			self.counter = 0
 			while True:
 				self.counter+=1
