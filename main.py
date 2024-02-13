@@ -303,8 +303,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						
 						optimizer.step()
 						optimizer.zero_grad()
-						time.sleep(10)
-
+						
 
 					else:
 						for thread_idx in range(config['num_threads']):
