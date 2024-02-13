@@ -102,8 +102,7 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 		if random_value > epsilon:
 			action[x] = torch.argmax(action_probs[x])
 		else:
-			action[x] = actions[random.randint(0, 10)]
-
+			action[x] = int(actions[random.randint(0, 10)])
 	'''
 	if random_value > epsilon:
 		action = torch.argmax(action_probs, dim=1)
@@ -135,8 +134,9 @@ def env_state_retr(environment, timestep):
 
 def env_step(environment, timestep, actions):
 	batched_actions = actions.cpu().numpy()
+	
 	batched_rewards = np.zeros(len(environment), dtype=np.float32)
-	for idx, env in enumerate(environment):
+	for idx, env in enumerate(environment): 	
 		env.step(batched_actions[idx], timestep)
 		batched_rewards[idx] = env.get_step_reward()
 		
@@ -257,6 +257,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						accumulated_position = 0
 						accumulated_bh_profit = 0
 						accumulated_sh_profit = 0
+						accumulated_action_taken = 0
 
 						for thread_idx in range(config['num_threads']):
 							for env in environment_arr[thread_idx]:
@@ -265,6 +266,8 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 								accumulated_position += env.get_position()
 								accumulated_bh_profit += env.get_bh_profit()
 								accumulated_sh_profit += env.get_sh_profit()
+								accumulated_action_taken += env.get_action_taken()
+
 
 						
 						accumulated_profit = accumulated_profit / (config['num_threads'] * config['envs_per_thread'])
@@ -272,13 +275,14 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						accumulated_position = accumulated_position / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_bh_profit = accumulated_bh_profit / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_sh_profit = accumulated_sh_profit / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_action_taken = accumulated_action_taken / (config['num_threads'] * config['envs_per_thread'])
 
 						timestep_time_end = time.time()
 
-						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}')
+						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}, accumulated action taken: {accumulated_action_taken}')
 						print(100*'=')
 
-						f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}\n')
+						f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}, accumulated action taken: {accumulated_action_taken}\n')
 
 						combined_loss.backward()
 						#critic_loss.backward()

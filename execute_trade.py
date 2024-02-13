@@ -11,5 +11,5 @@ def execute_trade(prices_v, action, current_tick):
         action = remaining_liquidity
         current_tick += 1
 
-    cash -= .0035 * action
+    cash -= .0035 * abs(action)
     return cash

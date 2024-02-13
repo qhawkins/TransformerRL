@@ -138,6 +138,7 @@ class Environment:
 			
 		self.action_taken = 0
 		if action > 0:  # Buying
+			print(f'action: {action}')
 			# Calculate potential trade cost and remaining liquidity
 			'''cash position action'''
 			pot_cash = execute_trade(self.prices_v, action, timestep)
@@ -148,6 +149,7 @@ class Environment:
 				self.action_taken = action
 
 		elif action < 0:  # Selling or Negative Action
+			print(f'action: {action}')
 			pot_cash = execute_trade(self.prices_v, action, timestep)
 			if pot_cash+self.cash < 2* self.start_cash:
 				self.cash+=pot_cash
@@ -163,7 +165,7 @@ class Environment:
 				
 		self.position_history[self.current_tick] = self.position
 		
-		pot_cash = execute_trade(self.prices_v, -self.position, timestep)
+		#pot_cash = execute_trade(self.prices_v, -self.position, timestep)
 
 
 		# Calculate buy and hold and sell and hold profits
@@ -219,6 +221,9 @@ class Environment:
 	def get_position(self) -> int:
 		return self.position
 	
+	def get_action_taken(self) -> int:
+		return self.action_taken
+
 	def get_bh_profit(self) -> float:
 		return self.bh_profit
 	
