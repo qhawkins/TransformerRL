@@ -14,7 +14,7 @@ def future_profits(prices_v, buffer_len, position, current_tick, action_taken):
         wo_trade = execute_trade(prices_v, -position, current_tick + i)
         #print(f'with_trade: {with_trade}, wo_trade: {wo_trade}')
         if wo_trade != 0:
-            fut_profit[i] = with_trade/wo_trade
+            fut_profit[i] = (with_trade-wo_trade)/wo_trade
         else:
             fut_profit[i] = 0
         #fut_profit[i] = ((find_fill_price(prices_v, position, -position, current_tick + i)+cash)-initial_basis)/initial_basis
