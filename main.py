@@ -121,7 +121,7 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 	action_logprobs = torch.zeros(batch_size, device='cuda')
 	
 	for i in range(action_probs.size(0)):
-		action_logprobs[i] = (action_probs[i][action[i].item()] + 1e-8).log()
+		action_logprobs[i] = (action_probs[i][int(action[i])] + 1e-8).log()
 
 	action = torch.tensor([actions[act] for act in action])
 
