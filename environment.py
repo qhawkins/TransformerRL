@@ -1,9 +1,9 @@
 import numpy as np
 import numba as nb
-from find_fill_price import find_fill_price
 from weighted_future_rewards import weighted_future_rewards
 from future_profits import future_profits
 from execute_trade import execute_trade
+import time
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -142,7 +142,7 @@ class Environment:
 			# Calculate potential trade cost and remaining liquidity
 			'''cash position action'''
 			pot_cash = execute_trade(self.prices_v, action, timestep)
-
+			print(f'pot_cash buy: {pot_cash}')
 			if pot_cash > 0:
 				self.cash+=pot_cash
 				self.position+=action
@@ -151,6 +151,7 @@ class Environment:
 		elif action < 0:  # Selling or Negative Action
 			print(f'action: {action}')
 			pot_cash = execute_trade(self.prices_v, action, timestep)
+			print(f'pot_cash sell: {pot_cash}')
 			if pot_cash+self.cash < 2* self.start_cash:
 				self.cash+=pot_cash
 				self.position+=action
@@ -162,7 +163,7 @@ class Environment:
 				#print('executing trade')
 			#self.execute_trade(action)
 				#print(self.position)
-				
+		time.sleep(1)	
 		self.position_history[self.current_tick] = self.position
 		
 		#pot_cash = execute_trade(self.prices_v, -self.position, timestep)
