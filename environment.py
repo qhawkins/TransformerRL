@@ -160,10 +160,10 @@ class Environment:
 		self.account_value = self.cash - position_closing_cost
 
 		# Calculate buy and hold and sell and hold profits
-		self.bh_liq = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
+		self.bh_liq, _ = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
 		self.bh_profit = (self.bh_cash - self.bh_liq)/self.start_cash
 
-		self.sh_liq = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
+		self.sh_liq, _ = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
 		self.sh_profit = (self.sh_cash - self.sh_liq)/self.start_cash
 
 		self.total_profit = self.account_value / self.start_cash

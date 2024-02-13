@@ -3,6 +3,7 @@ import numba as nb
 from numba import prange
 from find_fill_price import find_fill_price
 
+
 @nb.njit(cache=True, fastmath=True, parallel=True)
 def future_profits(prices_v, buffer_len, position, current_tick, action_taken):
     # Simplified future profits calculation

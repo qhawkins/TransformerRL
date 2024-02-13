@@ -1,7 +1,7 @@
 import numba as nb
 
-#@nb.njit(cache=True, fastmath=True)
-def find_fill_price(prices_v, action, timestep=None):
+@nb.njit(cache=True, fastmath=True)
+def find_fill_price(prices_v, action, timestep=None) -> float:
     '''quantity is positive for buy and negative for sell'''
     current_price_slice = prices_v[timestep]
     liquidity_used = 0
@@ -9,7 +9,7 @@ def find_fill_price(prices_v, action, timestep=None):
         index = 50
         while action > 0:
             if index > 99:
-                return liquidity_used, None
+                return liquidity_used, action
             
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
@@ -27,7 +27,7 @@ def find_fill_price(prices_v, action, timestep=None):
         index = 49
         while action < 0:
             if index < 0:
-                return liquidity_used, None
+                return liquidity_used, action
             
             price = current_price_slice[index, 0]
             liquidity = current_price_slice[index, 1]
