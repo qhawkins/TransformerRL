@@ -95,11 +95,22 @@ def load_model(rank, tensor_parallel_group, config):
 def act_calcs(batch_size, epsilon, action_probs, state_val):
 	random_value = random.random()
 	actions = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]	
+	action = torch.zeros(batch_size, device='cuda')
+	
+	for x in range(batch_size):
+		random_value = random.random()
+		if random_value > epsilon:
+			action[x] = torch.argmax(action_probs[x])
+		else:
+			action[x] = actions[random.randint(0, 10)]
 
+	'''
 	if random_value > epsilon:
 		action = torch.argmax(action_probs, dim=1)
 	else:
 		action = actions[random.randint(0, 10)]
+	
+	'''
 	
 	'''
 	else:
