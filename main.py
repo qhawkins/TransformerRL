@@ -174,7 +174,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		pool = mp.Pool(config['num_threads'])
 		
 		thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.95, time=256) for i in range(config['envs_per_thread'])]
-		[thread_env[i].reset(raw_ob, 50000, 0, 50000) for i in range(config['envs_per_thread'])]
+		[thread_env[i].reset(raw_ob, 500000, 0, 500000) for i in range(config['envs_per_thread'])]
 		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
 		batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
