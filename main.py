@@ -214,9 +214,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						for x in range(config['batch_size']):
 							batched_ob[x] = ob_state.clone().detach()
 
+						start_time = time.time()
 						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
-						
+						end_time = time.time()
+						print(f'env state retrieval time: {end_time - start_time}')
+
 						batched_env_state = torch.tensor(np.stack(result, axis=0), device='cuda', dtype=torch.float32)
 						
 						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
@@ -234,10 +237,15 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						#action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
 						#state_val = torch.reshape(state_val, (config['num_threads'], config['envs_per_thread']))
 						#pool_time_start = time.time()
+						
+						start_time = time.time()
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
 						#pool_time_end = time.time()
 						#print(f'pool time: {pool_time_end - pool_time_start}')
 						result = [x.get() for x in pooled]
+						end_time = time.time()
+						print(f'env step time: {end_time - start_time}')
+
 
 						batched_returns = torch.tensor(np.array([x[0] for x in result]), device='cuda', dtype=torch.float32)
 												
@@ -291,6 +299,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						
 						optimizer.step()
 						optimizer.zero_grad()
+						time.sleep(10)
 
 
 					else:
