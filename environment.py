@@ -101,7 +101,8 @@ class Environment:
 		self.current_tick = timestep + self.timestep_offset
 		self.past_profit = self.total_profit
 		
-		self.account_value = execute_trade(self.prices_v, -self.position, timestep)+self.cash
+		self.account_value = execute_trade(self.prices_v, -self.position, timestep)
+		self.account_value += self.cash
 		self.total_profit = self.account_value / self.start_cash
 		
 		
@@ -111,23 +112,26 @@ class Environment:
 			self.counter = 0
 			while True:
 				self.counter+=1
-				self.bh_paid = find_fill_price(self.prices_v, self.counter, timestep)
+
+				self.bh_paid = execute_trade(self.prices_v, self.counter, timestep)
 				self.bh_cash = self.cash+self.bh_paid
 				if self.bh_cash < 0:
 					self.buy_hold_position = self.counter-1
-					self.bh_paid = find_fill_price(self.prices_v, self.buy_hold_position, timestep)
+					self.bh_paid = execute_trade(self.prices_v, self.buy_hold_position, timestep)
 					self.bh_cash = self.cash+self.bh_paid
 					break
+
 			self.counter = 0
 			while True:
 				self.counter-=1
-				self.sh_paid = find_fill_price(self.prices_v, self.counter, timestep)
-				self.sh_cash = self.cash-self.sh_paid
+				self.sh_paid = execute_trade(self.prices_v, self.counter, timestep)
+				self.sh_cash = self.cash+self.sh_paid
 				if self.sh_cash < 0:
 					self.sell_hold_position = self.counter+1
-					self.sh_paid = find_fill_price(self.prices_v, self.sell_hold_position, timestep)
+					self.sh_paid = execute_trade(self.prices_v, self.sell_hold_position, timestep)
 					self.sh_cash = self.cash+self.sh_paid
 					break
+
 			self.counter=0
 			print(f'self.bh_paid: {self.bh_paid}, self.bh_cash: {self.bh_cash}, counter: {self.buy_hold_position}')
 			print(f'self.sh_paid: {self.sh_paid}, self.sh_cash: {self.sh_cash}, counter: {self.sell_hold_position}')
