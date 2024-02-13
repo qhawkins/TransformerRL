@@ -267,6 +267,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						accumulated_bh_profit = 0
 						accumulated_sh_profit = 0
 						accumulated_action_taken = 0
+						accumulated_sharpe_ratio = 0
 
 						for thread_idx in range(config['num_threads']):
 							for env in environment_arr[thread_idx]:
@@ -276,6 +277,8 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 								accumulated_bh_profit += env.get_bh_profit()
 								accumulated_sh_profit += env.get_sh_profit()
 								accumulated_action_taken += env.get_action_taken()
+								accumulated_sharpe_ratio += env.get_sharpe_ratio()
+
 
 
 						
@@ -285,13 +288,14 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						accumulated_bh_profit = accumulated_bh_profit / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_sh_profit = accumulated_sh_profit / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_action_taken = accumulated_action_taken / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_sharpe_ratio = accumulated_sharpe_ratio / (config['num_threads'] * config['envs_per_thread'])
 
 						timestep_time_end = time.time()
 
-						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}, accumulated action taken: {accumulated_action_taken}')
+						print(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}, accumulated action taken: {accumulated_action_taken}, accumulated sharpe ratio: {accumulated_sharpe_ratio}')
 						print(100*'=')
 
-						f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}, accumulated action taken: {accumulated_action_taken}\n')
+						f.write(f'rank: {rank}, day: {idx}, step: {timestep}, combined loss: {combined_loss.item()}, actor loss: {actor_loss.item()}, critic loss: {critic_loss.item()}, epsilon: {epsilon}, accumulated profit: {accumulated_profit}, accumulated step reward: {accumulated_step_reward}, accumulated position: {accumulated_position}, step time: {timestep_time_end - timestep_time_start}, accumulated bh profit: {accumulated_bh_profit}, accumulated sh profit: {accumulated_sh_profit}, accumulated action taken: {accumulated_action_taken}, accumulated sharpe ratio: {accumulated_sharpe_ratio}\n')
 
 						combined_loss.backward()
 						#critic_loss.backward()

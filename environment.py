@@ -49,6 +49,7 @@ class Environment:
 		self.counter = 0
 		self.bh_cash = 0
 		self.sh_cash = 0
+		self.sharpe_ratio = 0
 
 	def reset(self, prices, cash, position, account_value):
 		self.running_reward = []
@@ -92,6 +93,7 @@ class Environment:
 		self.counter = 0
 		self.bh_cash = 0
 		self.sh_cash = 0
+		self.sharpe_ratio = 0
 
 	# Include other methods from the C++ class as Python methods here
 	def get_step_reward(self):
@@ -190,6 +192,12 @@ class Environment:
 		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken)
 		step_reward += weighted_future_rewards(profit_vec, self.gamma)
 		
+
+		self.sharpe_ratio = np.mean(profit_vec) / np.std(profit_vec)
+		'''sharpe ratio calculation'''
+		step_reward += self.sharpe_ratio
+		
+
 		'''
 		if abs(self.position) > 50:
 			step_reward -= abs(float(self.position)) / 1000
@@ -227,3 +235,6 @@ class Environment:
 	
 	def get_sh_profit(self) -> float:
 		return self.sh_profit
+
+	def get_sharpe_ratio(self) -> float:
+		return self.sharpe_ratio
