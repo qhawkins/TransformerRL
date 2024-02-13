@@ -137,7 +137,9 @@ class Environment:
 					break
 
 			self.counter=0
-			
+		
+
+		self.pre_cash = self.cash
 		self.action_taken = 0
 		if action > 0:  # Buying
 			# Calculate potential trade cost and remaining liquidity
@@ -156,6 +158,7 @@ class Environment:
 				self.cash+=pot_cash
 				self.position+=action
 				self.action_taken = action
+		self.post_cash = self.cash
 
 
 
@@ -189,13 +192,14 @@ class Environment:
 		step_reward = 0.0
 		current_position = self.position
 		# Example reward calculation
-		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken)
+		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken, self.pre_cash, self.post_cash)
 		step_reward += weighted_future_rewards(profit_vec, self.gamma)
-	
+		print(f'step_reward after weighted_future_rewards: {step_reward}')
 		'''sharpe ratio calculation'''
 		if np.std(profit_vec) != 0:
 			self.sharpe_ratio = np.mean(profit_vec) / np.std(profit_vec)
 			step_reward += self.sharpe_ratio
+		print(f'step_reward after sharpe_ratio: {step_reward}')
 			
 
 		'''
