@@ -187,7 +187,7 @@ class Environment:
 		step_reward = 0.0
 		current_position = self.position
 		# Example reward calculation
-		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken)
+		profit_vec = future_profits(self.prices_v, current_position, self.current_tick, self.action_taken)
 		step_reward += weighted_future_rewards(profit_vec, self.gamma)
 		
 		'''

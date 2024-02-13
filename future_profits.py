@@ -4,7 +4,7 @@ from numba import prange
 from find_fill_price import find_fill_price
 from execute_trade import execute_trade
 
-@nb.njit(cache=True, fastmath=True, parallel=True)
+#@nb.njit(cache=True, fastmath=True, parallel=True)
 def future_profits(prices_v, buffer_len, position, current_tick, action_taken):
     # Simplified future profits calculation
     fut_profit = np.zeros(buffer_len)
