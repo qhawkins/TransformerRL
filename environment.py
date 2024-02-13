@@ -183,7 +183,7 @@ class Environment:
 		# Compute reward
 		self.step_reward = self.calculate_reward()
 		self.running_reward.append(self.step_reward)
-		self.step_reward = (self.step_reward-np.mean(self.running_reward))/(np.std(self.running_reward)+.000001)
+		self.step_reward = (self.step_reward-np.mean(self.running_reward[timestep-self.offset:timestep]))/(np.std(self.running_reward[timestep-self.offset:timestep])+.000001)
 		self.previous_action = action
 		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
 
@@ -193,13 +193,11 @@ class Environment:
 		current_position = self.position
 		# Example reward calculation
 		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken, self.pre_cash, self.post_cash)
-		step_reward += weighted_future_rewards(profit_vec, self.gamma)*100000
-		print(f'step_reward after weighted_future_rewards: {step_reward}')
+		step_reward += weighted_future_rewards(profit_vec, self.gamma)*10000
 		'''sharpe ratio calculation'''
 		if np.std(profit_vec) != 0:
 			self.sharpe_ratio = np.mean(profit_vec) / np.std(profit_vec)
 			step_reward += self.sharpe_ratio/10
-		print(f'step_reward after sharpe_ratio: {step_reward}')
 			
 
 		'''
