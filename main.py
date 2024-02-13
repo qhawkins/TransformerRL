@@ -325,7 +325,7 @@ if __name__ == '__main__':
 		"epochs": max_num_epochs,
 		"learning_rate": 1e-5,
 		#"lr": tune.choice([5e-4]),
-		"batch_size": 40,
+		"batch_size": 36,
 		'prefetch': 1024,
 		'num_workers': 6,
 		'use_scheduler': False,
@@ -338,10 +338,10 @@ if __name__ == '__main__':
 		#'optimizer': tune.choice(['SGD', 'Adam', 'AdamW'])
 		'backend': 'nccl',
 		'fuse_qkv': False,
-		'num_threads': 4,
-		'envs_per_thread': 10,
+		'num_threads': 3,
+		'envs_per_thread': 12,
 		'epsilon': .9,
-		'end_buffer': 64
+		'end_buffer': 256
 
 	}
 	
