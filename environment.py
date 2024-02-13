@@ -179,14 +179,6 @@ class Environment:
 		self.previous_action = action
 		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
 
-
-	def execute_trade(self, action):
-		# Simplified trading logic
-		action_cost, _ = find_fill_price(self.prices_v, action, self.current_tick) - (.0035 * abs(action))
-		self.cash += action_cost
-		self.position += action
-		self.action_taken = action
-
 		
 	def calculate_reward(self):
 		step_reward = 0.0
