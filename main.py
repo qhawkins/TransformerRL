@@ -12,6 +12,7 @@ from transformer_engine.common.recipe import Format, DelayedScaling
 import random
 import multiprocessing as mp
 import torch.distributed as dist
+import math
 
 def path_function(path):
     if not os.path.exists(path):
@@ -173,7 +174,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		
 		pool = mp.Pool(config['num_threads'])
 		
-		thread_env = [Environment(prices=raw_ob, offset_init = 256, gamma_init=.95, time=256) for i in range(config['envs_per_thread'])]
+		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.95, time=256) for i in range(config['envs_per_thread'])]
 		[thread_env[i].reset(raw_ob, 500000, 0, 500000) for i in range(config['envs_per_thread'])]
 		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
@@ -187,11 +188,13 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 		with open(f'{logging_path}/rl_model_day_{idx}_rank_{rank}.txt', 'w') as f:
 			with pool:
-				for timestep in range(parsed_file.shape[0]):
+				for timestep in range(parsed_file.shape[0]-config['end_buffer']):
 					timestep_time_start = time.time()
 					if timestep > 256:
 						ob_state = torch.tensor(parsed_file[timestep, :, :, :])
-						epsilon = epsilon * .9995
+						#epsilon = epsilon * .9995
+						'''sine of the form 1024 * sin(t) where t is the timestep, this is the epsilon decay function'''
+						epsilon = 1024 * math.sin(timestep)
 						for x in range(config['batch_size']):
 							batched_ob[x] = ob_state.clone().detach()
 
@@ -303,7 +306,7 @@ if __name__ == '__main__':
 		'use_streaming': True,
 		'transformer_attention_size': 64,
 		"epochs": max_num_epochs,
-		"learning_rate": 5e-6,
+		"learning_rate": 1e-5,
 		#"lr": tune.choice([5e-4]),
 		"batch_size": 40,
 		'prefetch': 1024,
@@ -321,6 +324,7 @@ if __name__ == '__main__':
 		'num_threads': 4,
 		'envs_per_thread': 10,
 		'epsilon': .9,
+		'end_buffer': 64
 
 	}
 	
