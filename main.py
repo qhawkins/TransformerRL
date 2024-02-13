@@ -99,7 +99,13 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 	if random_value > epsilon:
 		action = torch.argmax(action_probs, dim=1)
 	else:
+		action = actions[random.randint(0, 10)]
+	
+	'''
+	else:
 		action = torch.multinomial(action_probs, 1, replacement=True)
+	
+	'''
 	
 	action_logprobs = torch.zeros(batch_size, device='cuda')
 	
@@ -175,7 +181,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		pool = mp.Pool(config['num_threads'])
 		
 		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.95, time=256) for i in range(config['envs_per_thread'])]
-		[thread_env[i].reset(raw_ob, 50000, 0, 50000) for i in range(config['envs_per_thread'])]
+		[thread_env[i].reset(raw_ob, 25000, 0, 25000) for i in range(config['envs_per_thread'])]
 		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
 		batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
