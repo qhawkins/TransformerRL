@@ -191,7 +191,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		
 		pool = mp.Pool(config['num_threads'])
 		
-		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.95, time=256) for i in range(config['envs_per_thread'])]
+		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=256) for i in range(config['envs_per_thread'])]
 		[thread_env[i].reset(raw_ob, 25000, 0, 25000) for i in range(config['envs_per_thread'])]
 		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
@@ -202,7 +202,6 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		mask = mask_tokens(batched_ob, 0)
 		mask = mask.cuda(non_blocking=True)
 		
-		mp.set_start_method('fork')
 		with open(f'{logging_path}/rl_model_day_{idx}_rank_{rank}.txt', 'w') as f:
 			with pool:
 				for timestep in range(parsed_file.shape[0]-config['end_buffer']):
