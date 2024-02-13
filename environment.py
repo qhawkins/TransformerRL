@@ -3,6 +3,7 @@ import numba as nb
 from find_fill_price import find_fill_price
 from weighted_future_rewards import weighted_future_rewards
 from future_profits import future_profits
+from execute_trade import execute_trade
 
 @nb.njit(cache=True)
 def jit_z_score(x):
@@ -98,75 +99,72 @@ class Environment:
 
 	def step(self, action, timestep):
 		self.current_tick = timestep + self.timestep_offset
-		current_position = self.position
-		'''needs to take into account the "true" price from the order book'''
 		self.past_profit = self.total_profit
-		total_profit_liquidity, _ = find_fill_price(self.prices_v, current_position, self.current_tick)
-		self.total_profit = total_profit_liquidity / self.start_cash
+		
+		self.account_value = execute_trade(self.prices_v, -self.position, timestep)+self.cash
+		self.total_profit = self.account_value / self.start_cash
+		
+		
 		self.st_profit = self.total_profit - self.past_profit
 		self.st_profit_history[self.current_tick] = self.st_profit
 		if timestep == 0:
 			self.counter = 0
 			while True:
 				self.counter+=1
-				self.bh_paid, liq_left = find_fill_price(self.prices_v, self.counter, timestep)
+				self.bh_paid = find_fill_price(self.prices_v, self.counter, timestep)
 				self.bh_cash = self.cash+self.bh_paid
-				if self.bh_cash < 0 or liq_left is None:
+				if self.bh_cash < 0:
 					self.buy_hold_position = self.counter-1
-					self.bh_paid, liq_left = find_fill_price(self.prices_v, self.buy_hold_position, timestep)
+					self.bh_paid = find_fill_price(self.prices_v, self.buy_hold_position, timestep)
 					self.bh_cash = self.cash+self.bh_paid
 					break
 			self.counter = 0
 			while True:
 				self.counter-=1
-				self.sh_paid, liq_left = find_fill_price(self.prices_v, self.counter, timestep)
+				self.sh_paid = find_fill_price(self.prices_v, self.counter, timestep)
 				self.sh_cash = self.cash-self.sh_paid
-				if self.sh_cash < 0 or liq_left is None:
+				if self.sh_cash < 0:
 					self.sell_hold_position = self.counter+1
-					self.sh_paid, liq_left = find_fill_price(self.prices_v, self.sell_hold_position, timestep)
+					self.sh_paid = find_fill_price(self.prices_v, self.sell_hold_position, timestep)
 					self.sh_cash = self.cash+self.sh_paid
 					break
 			self.counter=0
-			print(f'self.bh_paid: {self.bh_paid}, self.bh_cash: {self.bh_cash}, liq left: {liq_left}, counter: {self.buy_hold_position}')
-			print(f'self.sh_paid: {self.sh_paid}, self.sh_cash: {self.sh_cash}, liq left: {liq_left}, counter: {self.sell_hold_position}')
+			print(f'self.bh_paid: {self.bh_paid}, self.bh_cash: {self.bh_cash}, counter: {self.buy_hold_position}')
+			print(f'self.sh_paid: {self.sh_paid}, self.sh_cash: {self.sh_cash}, counter: {self.sell_hold_position}')
 			
 			
 
 		self.action_taken = 0
 		if action > 0:  # Buying
-			potential_trade_cost, liq_left = find_fill_price(self.prices_v, action, timestep)
-			potential_cash_after_trade = self.cash + potential_trade_cost
-			# Calculate total account value considering leverage and potential trade
-			potential_account_value = (self.cash + (self.leverage_factor * potential_trade_cost))
-			# Check if account value after trade meets margin requirements
-			if potential_trade_cost < self.cash and potential_cash_after_trade >= (potential_account_value * self.margin_requirement_percentage):
-				#print('executing trade')
-				self.execute_trade(action)
-				
-				#print(self.position)
-	
+			# Calculate potential trade cost and remaining liquidity
+			'''cash position action'''
+			pot_cash = execute_trade(self.prices_v, action, timestep)
+
+			#if pot_cash > 0:
+			self.cash+=pot_cash
+			self.position+=action
+			
 
 		elif action < 0:  # Selling or Negative Action
-			adjustment_cost = find_fill_price(self.prices_v, action, timestep)
-			# Here, you may also want to consider how selling affects margin usage and account equity
-			# For simplicity, ensure net effect of the action doesn't exceed a certain loss threshold, considering margin
-			if adjustment_cost < 100000 and (self.cash + adjustment_cost) >= (self.cash * self.margin_requirement_percentage):
+			pot_cash = execute_trade(self.prices_v, action, timestep)
+			self.cash+=pot_cash
+			self.position+=action
+
+
+
+			#if pot_cash < 100000 and (self.cash + adjustment_cost) >= (self.cash * self.margin_requirement_percentage):
 				#print('executing trade')
-				self.execute_trade(action)
+			#self.execute_trade(action)
 				#print(self.position)
 				
 		self.position_history[self.current_tick] = self.position
-		position_closing_cost, _ = find_fill_price(self.prices_v, -current_position, timestep)
-		self.account_value = self.cash - position_closing_cost
+		
+		pot_cash = execute_trade(self.prices_v, -self.position, timestep)
+
 
 		# Calculate buy and hold and sell and hold profits
-		self.bh_liq, _ = find_fill_price(self.prices_v, -self.buy_hold_position, timestep)
-		self.bh_profit = (self.bh_cash - self.bh_liq)/self.start_cash
-
-		self.sh_liq, _ = find_fill_price(self.prices_v, -self.sell_hold_position, timestep)
-		self.sh_profit = (self.sh_cash - self.sh_liq)/self.start_cash
-
-		self.total_profit = self.account_value / self.start_cash
+		self.bh_profit = (self.cash + execute_trade(self.prices_v, -self.buy_hold_position, timestep))/self.start_cash
+		self.sh_profit = (self.cash + execute_trade(self.prices_v, -self.sell_hold_position, timestep))/self.start_cash
 
 		self.cash_history[self.current_tick] = self.cash
 		self.total_profit_history[self.current_tick] = self.total_profit
