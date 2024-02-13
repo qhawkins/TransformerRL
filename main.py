@@ -235,10 +235,11 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						#state_val = torch.reshape(state_val, (config['num_threads'], config['envs_per_thread']))
 						#pool_time_start = time.time()
 						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
-						result = [x.get() for x in pooled]
 						#pool_time_end = time.time()
 						#print(f'pool time: {pool_time_end - pool_time_start}')
 						batched_returns = torch.tensor(np.array([x[0] for x in result])).cuda()
+						
+						result = [x.get() for x in pooled]
 						
 						for thread_idx in range(config['num_threads']):
 							environment_arr[thread_idx] = result[thread_idx][1]
