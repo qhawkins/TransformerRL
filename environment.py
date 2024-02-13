@@ -114,6 +114,7 @@ class Environment:
 				self.counter+=1
 
 				self.bh_paid = execute_trade(self.prices_v, self.counter, timestep)
+				
 				self.bh_cash = self.cash+self.bh_paid
 				if self.bh_cash < 0:
 					self.buy_hold_position = self.counter-1
@@ -121,38 +122,37 @@ class Environment:
 					self.bh_cash = self.cash+self.bh_paid
 					break
 
+
 			self.counter = 0
 			while True:
 				self.counter-=1
 				self.sh_paid = execute_trade(self.prices_v, self.counter, timestep)
 				self.sh_cash = self.cash+self.sh_paid
-				if self.sh_cash < 0:
+				if self.sh_cash > 2*self.start_cash:
 					self.sell_hold_position = self.counter+1
 					self.sh_paid = execute_trade(self.prices_v, self.sell_hold_position, timestep)
 					self.sh_cash = self.cash+self.sh_paid
 					break
 
 			self.counter=0
-			print(f'self.bh_paid: {self.bh_paid}, self.bh_cash: {self.bh_cash}, counter: {self.buy_hold_position}')
-			print(f'self.sh_paid: {self.sh_paid}, self.sh_cash: {self.sh_cash}, counter: {self.sell_hold_position}')
 			
-			
-
 		self.action_taken = 0
 		if action > 0:  # Buying
 			# Calculate potential trade cost and remaining liquidity
 			'''cash position action'''
 			pot_cash = execute_trade(self.prices_v, action, timestep)
 
-			#if pot_cash > 0:
-			self.cash+=pot_cash
-			self.position+=action
-			
+			if pot_cash > 0:
+				self.cash+=pot_cash
+				self.position+=action
+				self.action_taken = action
 
 		elif action < 0:  # Selling or Negative Action
 			pot_cash = execute_trade(self.prices_v, action, timestep)
-			self.cash+=pot_cash
-			self.position+=action
+			if pot_cash+self.cash < 2* self.start_cash:
+				self.cash+=pot_cash
+				self.position+=action
+				self.action_taken = action
 
 
 
@@ -167,8 +167,9 @@ class Environment:
 
 
 		# Calculate buy and hold and sell and hold profits
-		self.bh_profit = (self.cash + execute_trade(self.prices_v, -self.buy_hold_position, timestep))/self.start_cash
-		self.sh_profit = (self.cash + execute_trade(self.prices_v, -self.sell_hold_position, timestep))/self.start_cash
+		
+		self.bh_profit = (self.bh_cash + execute_trade(self.prices_v, -self.buy_hold_position, timestep))/self.start_cash
+		self.sh_profit = (self.sh_cash + execute_trade(self.prices_v, -self.sell_hold_position, timestep))/self.start_cash
 
 		self.cash_history[self.current_tick] = self.cash
 		self.total_profit_history[self.current_tick] = self.total_profit
