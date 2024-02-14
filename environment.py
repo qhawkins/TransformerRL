@@ -189,7 +189,7 @@ class Environment:
 		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
 		self.position_value = execute_trade(self.prices_v, -self.position, timestep)
 		self.account_value = self.position_value+self.cash
-		self.portfolio_leverage = (self.position_value-self.account_value) / self.account_value
+		self.portfolio_leverage = self.position_value / self.account_value
 
 
 		self.cash_history[self.current_tick] = self.cash
