@@ -34,6 +34,7 @@ class Environment:
 		self.total_profit_history = np.zeros(len(self.prices_v))
 		self.st_profit_history = np.zeros(len(self.prices_v))
 		self.action_history = np.zeros(len(self.prices_v))
+		self.portfolio_leverage_history = np.zeros(len(self.prices_v))
 		self.offset = offset_init
 		self.gamma = gamma_init
 		self.time_dim = time
@@ -94,8 +95,13 @@ class Environment:
 		self.bh_cash = 0
 		self.sh_cash = 0
 		self.sharpe_ratio = 0
-
-	# Include other methods from the C++ class as Python methods here
+		self.position_history = np.zeros(len(self.prices_v))
+		self.cash_history = np.zeros(len(self.prices_v))
+		self.total_profit_history = np.zeros(len(self.prices_v))
+		self.st_profit_history = np.zeros(len(self.prices_v))
+		self.action_history = np.zeros(len(self.prices_v))
+		self.portfolio_leverage_history = np.zeros(len(self.prices_v))
+	
 	def get_step_reward(self):
 		return self.step_reward
 
@@ -103,8 +109,7 @@ class Environment:
 		self.current_tick = timestep + self.timestep_offset
 		self.past_profit = self.total_profit
 		
-		self.account_value = execute_trade(self.prices_v, -self.position, timestep)
-		self.account_value += self.cash
+		self.account_value = execute_trade(self.prices_v, -self.position, timestep) + self.cash
 		self.total_profit = self.account_value / self.start_cash
 		
 		
@@ -176,17 +181,21 @@ class Environment:
 		self.bh_profit = (self.bh_cash + execute_trade(self.prices_v, -self.buy_hold_position, timestep))/self.start_cash
 		self.sh_profit = (self.sh_cash + execute_trade(self.prices_v, -self.sell_hold_position, timestep))/self.start_cash
 
-		self.cash_history[self.current_tick] = self.cash
-		self.total_profit_history[self.current_tick] = self.total_profit
-		self.action_history[self.current_tick] = action
-		
 		# Compute reward
 		self.step_reward = self.calculate_reward()
 		self.running_reward.append(self.step_reward)
 		#self.step_reward = (self.step_reward-np.mean(self.running_reward[timestep-self.offset:timestep]))/(np.std(self.running_reward[timestep-self.offset:timestep])+.000001)
 		self.previous_action = action
 		#print(f'current_tick: {self.current_tick}, action: {action}, position: {self.position}, cash: {self.cash}, account_value: {self.account_value}, total_profit: {self.total_profit}, step_reward: {self.step_reward}')
+		self.position_value = execute_trade(self.prices_v, -self.position, timestep)
+		self.account_value = self.position_value+self.cash
+		self.portfolio_leverage = (self.position_value-self.account_value) / self.account_value
 
+
+		self.cash_history[self.current_tick] = self.cash
+		self.total_profit_history[self.current_tick] = self.total_profit
+		self.action_history[self.current_tick] = action
+		self.portfolio_leverage_history[self.current_tick] = self.portfolio_leverage
 		
 	def calculate_reward(self):
 		step_reward = 0.0
@@ -214,7 +223,10 @@ class Environment:
 		start_index = max(0, tick - self.time_dim)
 		end_index = tick
 		'''need to replace with the "true" price from the order book'''
-		self.state[:, 0] = jit_z_score(self.position_history[start_index:end_index])
+		#self.state[:, 0] = jit_z_score(self.position_history[start_index:end_index])
+		
+		self.state[:, 0] = self.portfolio_leverage_history[start_index:end_index]
+
 		self.state[:, 1] = jit_z_score(self.cash_history[start_index:end_index])
 		self.state[:, 2] = jit_z_score(self.action_history[start_index:end_index])  # Example scaling
 		# Combine all features into a single state array
@@ -240,3 +252,6 @@ class Environment:
 
 	def get_sharpe_ratio(self) -> float:
 		return self.sharpe_ratio
+
+	def get_portfolio_leverage(self) -> float:
+		return self.portfolio_leverage
