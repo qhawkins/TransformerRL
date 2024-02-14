@@ -342,7 +342,7 @@ if __name__ == '__main__':
 		'use_streaming': True,
 		'transformer_attention_size': 64,
 		"epochs": max_num_epochs,
-		"learning_rate": 1e-5,
+		"learning_rate": 5e-6,
 		#"lr": tune.choice([5e-4]),
 		"batch_size": 36,
 		'prefetch': 1024,
