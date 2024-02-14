@@ -189,15 +189,14 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		if file is None:
 			continue
 		
-		pool = mp.Pool(config['batch_size'])
+		pool = mp.Pool(config['num_threads'])
 		
-		environment_arr = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=256) for i in range(config['batch_size'])]
+		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=256) for i in range(config['envs_per_thread'])]
+		[thread_env[i].reset(raw_ob, config['start_cash'], 0, config['start_cash']) for i in range(config['envs_per_thread'])]
+		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
-		[environment_arr[i].reset(raw_ob, 25000, 0, 25000) for i in range(config['batch_size'])]
-		
-		
-		batched_env_state = torch.zeros((config['batch_size'], 256, 3), dtype=torch.float32)
-		batched_returns = torch.zeros(config['batch_size'], dtype=torch.float32)
+		batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
+		batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)
 		epsilon = config['epsilon']
 
 		mask = mask_tokens(batched_ob, 0)
@@ -216,13 +215,15 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 							batched_ob[x] = ob_state.clone().detach()
 
 						#start_time = time.time()
-						pooled = [pool.apply_async(env_state_retr, (environment_arr))]
+						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						#end_time = time.time()
 						#print(f'env state retrieval time: {end_time - start_time}')
 
-						batched_env_state = torch.tensor(result, device='cuda', dtype=torch.float32)
+						batched_env_state = torch.tensor(np.stack(result, axis=0), device='cuda', dtype=torch.float32)
 						
+						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
+
 						batched_ob = batched_ob.cuda(non_blocking=True)
 						#forward_time_start = time.time()
 						with te.fp8_autocast(enabled=True, fp8_recipe=recipe):
@@ -232,12 +233,13 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 
 						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
+						action = torch.reshape(action, (config['num_threads'], config['envs_per_thread']))
 						#action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
 						#state_val = torch.reshape(state_val, (config['num_threads'], config['envs_per_thread']))
 						#pool_time_start = time.time()
 						
 						#start_time = time.time()
-						pooled = [pool.apply_async(env_step, (environment_arr))]
+						pooled = [pool.apply_async(env_step, (environment_arr[thread_idx], timestep, action[thread_idx])) for thread_idx in range(config['num_threads'])]
 						#pool_time_end = time.time()
 						#print(f'pool time: {pool_time_end - pool_time_start}')
 						result = [x.get() for x in pooled]
@@ -245,11 +247,12 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						#print(f'env step time: {end_time - start_time}')
 
 
-						batched_returns = torch.tensor(result, device='cuda', dtype=torch.float32)
+						batched_returns = torch.tensor(np.array([x[0] for x in result]), device='cuda', dtype=torch.float32)
 												
-						for thread_idx in range(config['batch_size']):
+						for thread_idx in range(config['num_threads']):
 							environment_arr[thread_idx] = result[thread_idx][1]
 													
+						batched_returns = torch.reshape(batched_returns, (config['batch_size'], 1))
 						
 						advantages: torch.Tensor = batched_returns - state_val
 						actor_loss = torch.mean(-action_logprobs * advantages.detach())
@@ -266,25 +269,26 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						accumulated_action_taken = 0
 						accumulated_sharpe_ratio = 0
 
-						for env in environment_arr[thread_idx]:
-							accumulated_profit += env.get_total_profit()
-							accumulated_step_reward += env.get_step_reward()
-							accumulated_position += env.get_position()
-							accumulated_bh_profit += env.get_bh_profit()
-							accumulated_sh_profit += env.get_sh_profit()
-							accumulated_action_taken += env.get_action_taken()
-							accumulated_sharpe_ratio += env.get_sharpe_ratio()
+						for thread_idx in range(config['num_threads']):
+							for env in environment_arr[thread_idx]:
+								accumulated_profit += env.get_total_profit()
+								accumulated_step_reward += env.get_step_reward()
+								accumulated_position += env.get_position()
+								accumulated_bh_profit += env.get_bh_profit()
+								accumulated_sh_profit += env.get_sh_profit()
+								accumulated_action_taken += env.get_action_taken()
+								accumulated_sharpe_ratio += env.get_sharpe_ratio()
 
 
 
 						
-						accumulated_profit = accumulated_profit / config['batch_size']
-						accumulated_step_reward = accumulated_step_reward / config['batch_size']
-						accumulated_position = accumulated_position / config['batch_size']
-						accumulated_bh_profit = accumulated_bh_profit / config['batch_size']
-						accumulated_sh_profit = accumulated_sh_profit / config['batch_size']
-						accumulated_action_taken = accumulated_action_taken / config['batch_size']
-						accumulated_sharpe_ratio = accumulated_sharpe_ratio / config['batch_size']
+						accumulated_profit = accumulated_profit / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_step_reward = accumulated_step_reward / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_position = accumulated_position / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_bh_profit = accumulated_bh_profit / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_sh_profit = accumulated_sh_profit / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_action_taken = accumulated_action_taken / (config['num_threads'] * config['envs_per_thread'])
+						accumulated_sharpe_ratio = accumulated_sharpe_ratio / (config['num_threads'] * config['envs_per_thread'])
 
 						timestep_time_end = time.time()
 
@@ -302,9 +306,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						
 
 					else:
-						for env in environment_arr[thread_idx]:
-							env.step(0, timestep)
-	
+						for thread_idx in range(config['num_threads']):
+							for env in environment_arr[thread_idx]:
+								env.step(0, timestep)
+		
 
 			torch.save(ddp_model.state_dict(), f'{model_save_path}/rl_model_day_{idx}_rank_{rank}.pth')
 
@@ -352,7 +357,8 @@ if __name__ == '__main__':
 		'num_threads': 3,
 		'envs_per_thread': 12,
 		'epsilon': .9,
-		'end_buffer': 256
+		'end_buffer': 256,
+		'start_cash': 50000,
 
 	}
 	
