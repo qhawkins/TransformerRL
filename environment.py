@@ -77,7 +77,6 @@ class Environment:
 		# More attributes initialization as per original C++ code
 		self.state = np.zeros((self.time_dim, 3))  # Example, adjust dimensions as needed
 		self.price = 0
-		self.timestep_offset = 0
 		# Initialize histories
 		self.sharpe_history = 0
 		self.position_penalty_history = 0
@@ -106,7 +105,8 @@ class Environment:
 		return self.step_reward
 
 	def step(self, action, timestep):
-		self.current_tick = timestep + self.timestep_offset
+		#self.current_tick = timestep + self.timestep_offset
+		self.current_tick = timestep
 		self.past_profit = self.total_profit
 		
 		self.account_value = execute_trade(self.prices_v, -self.position, timestep) + self.cash
