@@ -39,8 +39,7 @@ def jit_z_score(x):
 	return result
 
 @nb.njit(cache=True, fastmath=True)
-def parse_file(file):
-	start_offset = 256
+def parse_file(file, start_offset):
 	consolidated_order_book = np.zeros((24000, start_offset, 100, 2), dtype=np.float32)
 	order_book_i = 0
 	arr_0 = np.zeros((start_offset, 100, 1), dtype=np.float32)
@@ -67,7 +66,7 @@ def parse_file(file):
 	print(f'file has {np.sum(np.isinf(file))} infs')
 	print(f'parsed order book shape: {len(consolidated_order_book.shape)}')
 	print(f'raw order book shape: {len(raw_ob)}')
-	return (consolidated_order_book, raw_ob)
+	return (consolidated_order_book, raw_ob[start_offset:, :, :])
 
 def mask_tokens(data, mask_probability):
 	# Create a mask of the same shape as the data
@@ -126,8 +125,8 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 
 	return action, action_logprobs, state_val
 
-def env_state_retr(environment, timestep):
-	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
+def env_state_retr(environment, timestep, config):
+	batched_env_state = np.zeros((len(environment), config['end_buffer'], 3), dtype=np.float32) 
 	for idx, env in enumerate(environment):
 		batched_env_state[idx] = env.get_state(timestep)
 	return batched_env_state
@@ -184,14 +183,14 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		file = file.astype(np.float32)
 		print(f"File dtype time: {time.time() - start_time}")
 		start_time = time.time()
-		parsed_file, raw_ob = parse_file(file)
+		parsed_file, raw_ob = parse_file(file, 256)
 		print(f"File parse time: {time.time() - start_time}")
 		if file is None:
 			continue
 		
 		pool = mp.Pool(config['num_threads'])
 		
-		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=256) for i in range(config['envs_per_thread'])]
+		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=config['end_buffer']) for i in range(config['envs_per_thread'])]
 		[thread_env[i].reset(raw_ob, config['start_cash'], 0, config['start_cash']) for i in range(config['envs_per_thread'])]
 		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
@@ -206,7 +205,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 			with pool:
 				for timestep in range(parsed_file.shape[0]-config['end_buffer']):
 					timestep_time_start = time.time()
-					if timestep > config['end_buffer']:
+					if timestep > 256:
 						ob_state = torch.tensor(parsed_file[timestep, :, :, :])
 						#epsilon = epsilon * .9995
 						'''sine of the form 1024 * sin(t) where t is the timestep, this is the epsilon decay function'''
@@ -215,14 +214,14 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 							batched_ob[x] = ob_state.clone().detach()
 
 						#start_time = time.time()
-						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
+						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, config)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						#end_time = time.time()
 						#print(f'env state retrieval time: {end_time - start_time}')
 
 						batched_env_state = torch.tensor(np.stack(result, axis=0), device='cuda', dtype=torch.float32)
 						
-						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
+						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], config['end_buffer'], 3))
 
 						batched_ob = batched_ob.cuda(non_blocking=True)
 						#forward_time_start = time.time()
