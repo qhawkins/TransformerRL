@@ -280,9 +280,6 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 								accumulated_action_taken += env.get_action_taken()
 								accumulated_sharpe_ratio += env.get_sharpe_ratio()
 								accumulated_portfolio_leverage += env.get_portfolio_leverage()
-
-
-
 						
 						accumulated_profit = accumulated_profit / (config['num_threads'] * config['envs_per_thread'])
 						accumulated_step_reward = accumulated_step_reward / (config['num_threads'] * config['envs_per_thread'])
@@ -360,7 +357,7 @@ if __name__ == '__main__':
 		'num_threads': 3,
 		'envs_per_thread': 12,
 		'epsilon': .9,
-		'end_buffer': 256,
+		'end_buffer': 64,
 		'start_cash': 50000,
 
 	}
