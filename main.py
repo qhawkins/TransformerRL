@@ -248,7 +248,8 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 
 						batched_returns = torch.tensor(np.array([x[0] for x in result]), device='cuda', dtype=torch.float32)
 
-						batched_returns = jit_z_score(batched_returns.numpy())
+						batched_returns = jit_z_score(batched_returns.cpu().numpy())
+						batched_returns = torch.tensor(batched_returns, device='cuda', dtype=torch.float32)
 
 						for thread_idx in range(config['num_threads']):
 							environment_arr[thread_idx] = result[thread_idx][1]
