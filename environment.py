@@ -52,6 +52,7 @@ class Environment:
 		self.bh_cash = 0
 		self.sh_cash = 0
 		self.sharpe_ratio = 0
+		self.portfolio_leverage = 0
 
 	def reset(self, prices, cash, position, account_value):
 		self.running_reward = []
@@ -102,6 +103,7 @@ class Environment:
 		self.action_history = np.zeros(len(self.prices_v))
 		self.portfolio_leverage_history = np.zeros(len(self.prices_v))
 		self.cash_leverage_history = np.zeros(len(self.prices_v))
+		self.portfolio_leverage = 0
 	
 	def get_step_reward(self):
 		return self.step_reward
@@ -206,12 +208,14 @@ class Environment:
 		current_position = self.position
 		# Example reward calculation
 		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken, self.pre_cash, self.post_cash)
-		step_reward += weighted_future_rewards(profit_vec, self.gamma)*10000
-		step_reward -= abs(self.portfolio_leverage)/10
+		step_reward += weighted_future_rewards(profit_vec, self.gamma)*100000
+		if abs(self.portfolio_leverage) > .2:
+			step_reward -= abs(self.portfolio_leverage)
+		
 		'''sharpe ratio calculation'''
 		if np.std(profit_vec) != 0:
 			self.sharpe_ratio = np.mean(profit_vec) / np.std(profit_vec)
-			step_reward += self.sharpe_ratio/10
+			step_reward += self.sharpe_ratio
 			
 
 		'''
