@@ -125,8 +125,8 @@ def act_calcs(batch_size, epsilon, action_probs, state_val):
 
 	return action, action_logprobs, state_val
 
-def env_state_retr(environment, timestep, config):
-	batched_env_state = np.zeros((len(environment), config['end_buffer'], 3), dtype=np.float32) 
+def env_state_retr(environment, timestep):
+	batched_env_state = np.zeros((len(environment), 256, 3), dtype=np.float32) 
 	for idx, env in enumerate(environment):
 		batched_env_state[idx] = env.get_state(timestep)
 	return batched_env_state
@@ -190,7 +190,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		
 		pool = mp.Pool(config['num_threads'])
 		
-		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=config['end_buffer']) for i in range(config['envs_per_thread'])]
+		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=256) for i in range(config['envs_per_thread'])]
 		[thread_env[i].reset(raw_ob, config['start_cash'], 0, config['start_cash']) for i in range(config['envs_per_thread'])]
 		environment_arr = [thread_env for i in range(config['num_threads'])]
 		
@@ -214,14 +214,14 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 							batched_ob[x] = ob_state.clone().detach()
 
 						#start_time = time.time()
-						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep, config)) for thread_idx in range(config['num_threads'])]
+						pooled = [pool.apply_async(env_state_retr, (environment_arr[thread_idx], timestep)) for thread_idx in range(config['num_threads'])]
 						result = [x.get() for x in pooled]
 						#end_time = time.time()
 						#print(f'env state retrieval time: {end_time - start_time}')
 
 						batched_env_state = torch.tensor(np.stack(result, axis=0), device='cuda', dtype=torch.float32)
 						
-						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], config['end_buffer'], 3))
+						batched_env_state = torch.reshape(batched_env_state, (config['batch_size'], 256, 3))
 
 						batched_ob = batched_ob.cuda(non_blocking=True)
 						#forward_time_start = time.time()

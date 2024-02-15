@@ -207,6 +207,7 @@ class Environment:
 		# Example reward calculation
 		profit_vec = future_profits(self.prices_v, self.offset, current_position, self.current_tick, self.action_taken, self.pre_cash, self.post_cash)
 		step_reward += weighted_future_rewards(profit_vec, self.gamma)*10000
+		step_reward -= abs(self.portfolio_leverage)/10
 		'''sharpe ratio calculation'''
 		if np.std(profit_vec) != 0:
 			self.sharpe_ratio = np.mean(profit_vec) / np.std(profit_vec)
