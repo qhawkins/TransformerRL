@@ -231,7 +231,7 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 						#forward_time_end = time.time()
 						#print(f'forward time: {forward_time_end - forward_time_start}')
 
-
+						action_probs = torch.clamp(action_probs, 1e-2, 1-1e-2)
 						action, action_logprobs, state_val = act_calcs(config['batch_size'], epsilon, action_probs, state_val)
 						action = torch.reshape(action, (config['num_threads'], config['envs_per_thread']))
 						#action_logprobs = torch.reshape(action_logprobs, (config['num_threads'], config['envs_per_thread']))
