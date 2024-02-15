@@ -192,10 +192,10 @@ def create_torch_group(rank, tensor_parallel_group, data_parallel_group, config)
 		
 		thread_env = [Environment(prices=raw_ob, offset_init = config['end_buffer'], gamma_init=.99, time=256) for i in range(config['envs_per_thread'])]
 		[thread_env[i].reset(raw_ob, config['start_cash'], 0, config['start_cash']) for i in range(config['envs_per_thread'])]
-		environment_arr = [thread_env for i in range(config['num_threads'])]
+		environment_arr = [thread_env for i in range(config['num_threads'])]					
 		
 		batched_env_state = torch.zeros((config['num_threads'], config['envs_per_thread'], 256, 3), dtype=torch.float32)
-		batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)
+		batched_returns = torch.zeros(config['envs_per_thread'], dtype=torch.float32)																																																				
 		epsilon = config['epsilon']
 
 		mask = mask_tokens(batched_ob, 0)
