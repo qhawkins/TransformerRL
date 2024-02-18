@@ -70,7 +70,7 @@ def parse_file(file, start_offset):
 
 def mask_tokens(data, mask_probability):
 	# Create a mask of the same shape as the data
-	mask = torch.rand(data.shape) < mask_probability
+	mask = torch.rand(data.shape) > mask_probability
 	# Masking the data
 	return mask
 
