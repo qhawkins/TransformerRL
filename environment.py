@@ -212,7 +212,10 @@ class Environment:
 		if abs(self.portfolio_leverage) > .2:
 			step_reward -= abs(self.portfolio_leverage)
 		
+		profit_vec = profit_vec*1e7
+
 		'''sharpe ratio calculation'''
+		self.sharpe_ratio = 0
 		if np.std(profit_vec) != 0:
 			self.sharpe_ratio = np.mean(profit_vec) / np.std(profit_vec)
 			step_reward += self.sharpe_ratio
