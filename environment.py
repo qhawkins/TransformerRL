@@ -53,6 +53,8 @@ class Environment:
 		self.sh_cash = 0
 		self.sharpe_ratio = 0
 		self.portfolio_leverage = 0
+		self.bh_profit_history = np.zeros(len(self.prices_v))
+		self.sh_profit_history = np.zeros(len(self.prices_v))
 
 	def reset(self, prices, cash, position, account_value):
 		self.running_reward = []
@@ -104,6 +106,8 @@ class Environment:
 		self.portfolio_leverage_history = np.zeros(len(self.prices_v))
 		self.cash_leverage_history = np.zeros(len(self.prices_v))
 		self.portfolio_leverage = 0
+		self.bh_profit_history = np.zeros(len(self.prices_v))
+		self.sh_profit_history = np.zeros(len(self.prices_v))
 	
 	def get_step_reward(self):
 		return self.step_reward
@@ -202,6 +206,9 @@ class Environment:
 		self.action_history[self.current_tick] = action
 		self.portfolio_leverage_history[self.current_tick] = self.portfolio_leverage
 		self.cash_leverage_history[self.current_tick] = self.cash_leverage
+		self.bh_profit_history[self.current_tick] = self.bh_profit
+		self.sh_profit_history[self.current_tick] = self.sh_profit
+	
 
 	def calculate_reward(self):
 		step_reward = 0.0
@@ -269,3 +276,12 @@ class Environment:
 
 	def get_portfolio_leverage(self) -> float:
 		return self.portfolio_leverage
+	
+	def get_overall_sharpe(self) -> float:
+		return self.profit_list[self.current_tick]/np.std(self.profit_list[:self.current_tick])
+	
+	def get_bh_overall_sharpe(self) -> float:
+		return self.bh_profit_history[self.current_tick]/np.std(self.bh_profit_history[:self.current_tick])
+	
+	def get_sh_overall_sharpe(self) -> float:
+		return self.sh_profit_history[self.current_tick]/np.std(self.sh_profit_history[:self.current_tick])
