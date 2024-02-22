@@ -278,10 +278,10 @@ class Environment:
 		return self.portfolio_leverage
 	
 	def get_overall_sharpe(self) -> float:
-		return self.profit_list[self.current_tick]/np.std(self.profit_list[:self.current_tick])
+		return np.mean(self.total_profit_history[:self.current_tick])/np.std(self.total_profit_history[:self.current_tick])
 	
 	def get_bh_overall_sharpe(self) -> float:
-		return self.bh_profit_history[self.current_tick]/np.std(self.bh_profit_history[:self.current_tick])
+		return np.mean(self.bh_profit_history[:self.current_tick])/np.std(self.bh_profit_history[:self.current_tick])
 	
 	def get_sh_overall_sharpe(self) -> float:
-		return self.sh_profit_history[self.current_tick]/np.std(self.sh_profit_history[:self.current_tick])
+		return np.mean(self.sh_profit_history[:self.current_tick])/np.std(self.sh_profit_history[:self.current_tick])
